@@ -1,2 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
+[[Cassette]]
+git-tree-sha1 = "da85d135b6048d3e78603e277cf9a4609f7e0673"
+uuid = "7057c7e9-c182-5462-911a-8362d720325c"
+version = "0.2.6"
