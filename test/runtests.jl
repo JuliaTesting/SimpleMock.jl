@@ -8,24 +8,24 @@ using Test
         @test ncalls(m) == 0
         @test !called(m)
         @test !called_once(m)
-        @test !called_with_args(m)
-        @test !called_once_with_args(m)
+        @test !called_with(m)
+        @test !called_once_with(m)
 
         m()
         @test length((calls(m))) == 1
         @test ncalls(m) == 1
         @test called(m)
         @test called_once(m)
-        @test called_with_args(m)
-        @test called_once_with_args(m)
+        @test called_with(m)
+        @test called_once_with(m)
 
         m(1)
         @test !called_once(m)
-        @test called_with_args(m, 1)
-        @test !called_once_with_args(m, 1)
+        @test called_with(m, 1)
+        @test !called_once_with(m, 1)
 
         m(1; x=2)
-        @test called_with_args(m, 1; x=2)
+        @test called_with(m, 1; x=2)
     end
 
     @testset "has_calls" begin
@@ -37,7 +37,7 @@ using Test
         @test has_calls(m, Call())
         @test !has_calls(m, Call(1))
         @test !has_calls(m, Call(; x=1))
-        @test has_calls(m, Call(), Call())
+        @test !has_calls(m, Call(), Call())
 
         m(1)
         @test has_calls(m, Call(), Call(1))
@@ -50,6 +50,13 @@ using Test
 
         m(; x=1)
         @test has_calls(m, Call(4), Call(; x=1))
+    end
+
+    @testset "reset!" begin
+        m = Mock()
+        foreach(m, 1:10)
+        reset!(m)
+        @test !called(m)
     end
 
     @testset "Return values" begin
@@ -87,5 +94,12 @@ using Test
 
         m = Mock(; return_value=1, side_effect=2)
         @test m() == 2
+    end
+
+    @testset "mock" begin
+        mock(get) do get
+            Base.get()
+            @test called_once_with(get)
+        end
     end
 end
