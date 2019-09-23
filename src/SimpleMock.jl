@@ -12,7 +12,7 @@ For usage examples, see [`mock`](@ref).
 """
 module SimpleMock
 
-using Base: Callable, invokelatest
+using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
 
 using Cassette: overdub
@@ -235,13 +235,21 @@ function mock(f::Function, ctx::Symbol, args...)
     # Compute the function types to overdub.
     F = Union{map(typeof, funcs)...}
 
-    # TODO: Check for an existing method.
-    @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, args...; kwargs...) =
-        ctx.metadata[f](args...; kwargs...)
+    # Implement the overdub, but only if it's not already implemented.
+    if !overdub_exists(Ctx, F)
+        @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, args...; kwargs...) =
+            ctx.metadata[f](args...; kwargs...)
+    end
 
     # We use `invokelatest` since we've only just created the functions we need to call.
     c = invokelatest(Ctx; metadata=Dict(zip(funcs, mocks)))
     return invokelatest(overdub, c, f, mocks...)
+end
+
+# Has a function (or Union of functions) already been overdubbed for a given Context?
+overdub_exists(::Type{Ctx}, ::Type{F}) where {Ctx, F} = any(methods(overdub)) do m
+    Ts = unwrap_unionall(m.sig).types
+    length(Ts) >= 2 && Ts[2] === Ctx && Ts[3] === F
 end
 
 end

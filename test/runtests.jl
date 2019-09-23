@@ -1,5 +1,10 @@
+using Base: JLOptions
+
+using Test: @test, @testset, @test_throws
+
+using Suppressor: @capture_err
+
 using SimpleMock
-using Test
 
 @testset "SimpleMock.jl" begin
     @testset "Basic Mock behaviour" begin
@@ -96,6 +101,20 @@ using Test
         @test m() == 2
     end
 
+    o = JLOptions()
+    if o.warn_overwrite == 0
+        # https://github.com/fredrikekre/jlpkg/blob/3b1c2400932dbe13fa7c3cba92bde3842315976c/src/cli.jl#L151-L160
+        args = map(n -> n === :warn_overwrite ? 1 : getfield(o, n), fieldnames(JLOptions))
+        o2 = JLOptions(args...)
+        unsafe_store!(cglobal(:jl_options, JLOptions), o2)
+    end
+    @testset "mock on the same Coxntext does not overwrite methods" begin
+        Ctx = gensym()
+        mock(identity, Ctx, identity)
+        out = @capture_err mock(identity, Ctx, identity)
+        @test isempty(out)
+    end
+
     @testset "mock" begin
         # We're not using @test in the mock block because it breaks everything (#2).
 
@@ -105,15 +124,16 @@ using Test
         end
         @test result
 
-        result = mock(identity) do identity
-            Base.identity(1, 2, 3)
-            Base.identity()
+        result = mock(identity) do ident
+            identity(1, 2, 3)
+            identity()
             [
-                called(identity),
-                called_with(identity, 1, 2, 3),
-                !called_once(identity),
-                ncalls(identity) == 2,
-                has_call(identity, Call(1, 2, 3)),
+                called(ident),
+                called_with(ident, 1, 2, 3),
+                !called_once(ident),
+                ncalls(ident) == 2,
+                has_call(ident, Call(1, 2, 3)),
+                has_calls(ident, Call(1, 2, 3), Call()),
             ]
         end
         @test all(result)
