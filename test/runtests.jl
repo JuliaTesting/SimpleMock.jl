@@ -109,10 +109,9 @@ using SimpleMock
     if o.warn_overwrite == 0
         # https://github.com/fredrikekre/jlpkg/blob/3b1c2400932dbe13fa7c3cba92bde3842315976c/src/cli.jl#L151-L160
         args = map(n -> n === :warn_overwrite ? 1 : getfield(o, n), fieldnames(JLOptions))
-        o2 = JLOptions(args...)
-        unsafe_store!(cglobal(:jl_options, JLOptions), o2)
+        unsafe_store!(cglobal(:jl_options, JLOptions), JLOptions(args...))
     end
-    @testset "mock on the same Coxntext does not overwrite methods" begin
+    @testset "mock does not overwrite methods" begin
         Ctx = gensym()
         mock(identity, Ctx, identity)
         out = @capture_err mock(identity, Ctx, identity)

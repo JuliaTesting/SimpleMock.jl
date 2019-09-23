@@ -68,16 +68,15 @@ Use the `side_effect` keyword to set a side effect to occur upon calling the moc
 - If the value is a `Vector`, then each call uses the next element.
 - Any other value is returned without modification.
 """
-struct Mock{S, R}
+struct Mock{R, S}
     id::Symbol
     calls::Vector{Call}
-    vars::Dict{Symbol, Any}
-    effect::S
     ret::R
+    effect::S
 end
 
-Mock(; return_value::R=DEFAULT, side_effect::S=nothing) where {S, R} =
-    Mock{S, R}(gensym(), [], Dict(), side_effect, return_value)
+Mock(; return_value::R=DEFAULT, side_effect::S=nothing) where {R, S} =
+    Mock{R, S}(gensym(), [], return_value, side_effect)
 
 Base.:(==)(a::Mock, b::Mock) = a.id === b.id
 Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
@@ -85,7 +84,7 @@ Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
 """
     (m::Mock)(args...; kwargs...)
 
-Calling a `Mock` triggers its `side_effect` or returns its `return_value`.
+Calling a `Mock` triggers its `side_effect` or returns its `return_value` (in that order of priority).
 If neither are configured, a brand new `Mock` is returned.
 
 Either way, the call is recorded in the original `Mock`'s history.
@@ -99,8 +98,7 @@ function (m::Mock)(args...; kwargs...)
     effect isa Callable && return effect(args...; kwargs...)  # TODO: Arbitrary callable types.
     effect === nothing || return effect
 
-    ret = m.ret
-    return ret === DEFAULT ? Mock() : ret
+    return m.ret === DEFAULT ? Mock() : m.ret
 end
 
 """
@@ -159,13 +157,12 @@ has_call(m::Mock, c::Call) = c in calls(m)
 Return whether or not the [`Mock`](@ref) has a particular ordered sequence of [`Call`](@ref)s.
 """
 function has_calls(m::Mock, cs::Call...)
-    # TODO: Is this the best way to do it? Basically slide a window across the call list.
-    existing = calls(m)
     isempty(cs) && return true
-    length(cs) > ncalls(m) && return false
+    existing = calls(m)
+    length(cs) > length(existing) && return false
     cs = collect(cs)  # Omitting this causes a segfault?!
     n = length(cs) - 1
-    for i in 1:(ncalls(m) - n)
+    for i in 1:(length(existing) - n)
         existing[i:i+n] == cs && return true
     end
     return false
@@ -177,7 +174,7 @@ end
 Reset a [`Mock`](@ref)'s call history and internal variables.
 Side effects and return values are preserved.
 """
-reset!(m::Mock) = (empty!(m.calls); empty!(m.vars))
+reset!(m::Mock) = empty!(m.calls)
 
 """
     mock(f::Function[, ctx::Symbol], args...)
