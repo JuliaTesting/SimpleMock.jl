@@ -85,6 +85,10 @@ using SimpleMock
         @test m() == 3
         @test_throws ArgumentError m()
 
+        m = Mock(; side_effect=iseven)
+        @test !m(1)
+        @test m(2)
+
         m = Mock(; side_effect=KeyError(1))
         @test_throws KeyError m()
 
