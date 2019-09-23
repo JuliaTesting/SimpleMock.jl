@@ -184,6 +184,9 @@ reset!(m::Mock) = (empty!(m.calls); empty!(m.vars))
 
 Run `f` with specified functions replaced with [`Mock`](@ref)s.
 
+!!! warning
+    There are a few issues with this function, see them on [GitHub](https://github.com/christopher-dG/SimpleMock.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22Function%3A+mock%22).
+
 ## Examples
 
 Mocking a single function:

@@ -97,9 +97,25 @@ using Test
     end
 
     @testset "mock" begin
-        mock(get) do get
+        # We're not using @test in the mock block because it breaks everything (#2).
+
+        result = mock(get) do get
             Base.get()
-            @test called_once_with(get)
+            called_once_with(get)
         end
+        @test result
+
+        result = mock(identity) do identity
+            Base.identity(1, 2, 3)
+            Base.identity()
+            [
+                called(identity),
+                called_with(identity, 1, 2, 3),
+                !called_once(identity),
+                ncalls(identity) == 2,
+                has_call(identity, Call(1, 2, 3)),
+            ]
+        end
+        @test all(result)
     end
 end
