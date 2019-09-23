@@ -1,3 +1,15 @@
+"""
+A basic mocking module, inspired by Python's [`unittest.mock`](https://docs.python.org/3/library/unittest.mock.html) and implemented with [Cassette](https://github.com/jrevels/Cassette.jl).
+
+## Usage
+
+For usage examples, see [`mock`](@ref).
+
+## Differences from `unittest.mock`
+
+- SimpleMock only implements mocking of function calls, as opposed to arbitrary monkey-patching.
+- Neither `getfield` nor `setfield!` is not implemented for the default [`Mock`](@ref) object.
+"""
 module SimpleMock
 
 using Base: Callable, invokelatest
@@ -67,9 +79,8 @@ end
 Mock(; return_value::R=DEFAULT, side_effect::S=nothing) where {S, R} =
     Mock{S, R}(gensym(), [], Dict(), side_effect, return_value)
 
-Base.:(==)(a::Mock, b::Mock) = getfield(a, :id) === getfield(b, :id)
-Base.getproperty(m::Mock, s::Symbol) = get!(Mock, getfield(m, :vars), s)
-Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(getfield(m, :id)))")
+Base.:(==)(a::Mock, b::Mock) = a.id === b.id
+Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
 
 """
     (m::Mock)(args...; kwargs...)
@@ -82,13 +93,13 @@ Either way, the call is recorded in the original `Mock`'s history.
 function (m::Mock)(args...; kwargs...)
     push!(calls(m), Call(args...; kwargs...))
 
-    effect = getfield(m, :effect)
+    effect = m.effect
     effect isa Vector && (effect = popfirst!(effect))
     effect isa Exception && throw(effect)
     effect isa Callable && effect(args...; kwargs...)  # TODO: Arbitrary callable types.
     effect === nothing || return effect
 
-    ret = getfield(m, :ret)
+    ret = m.ret
     return ret === DEFAULT ? Mock() : ret
 end
 
@@ -97,7 +108,7 @@ end
 
 Return the call history of the [`Mock`](@ref).
 """
-calls(m::Mock) = getfield(m, :calls)
+calls(m::Mock) = m.calls
 
 """
     ncalls(::Mock) -> Int
@@ -166,7 +177,7 @@ end
 Reset a [`Mock`](@ref)'s call history and internal variables.
 Side effects and return values are preserved.
 """
-reset!(m::Mock) = (empty!(calls(m)); empty!(getfield(m, :vars)))
+reset!(m::Mock) = (empty!(m.calls); empty!(m.vars))
 
 """
     mock(f::Function[, ctx::Symbol], args...)
@@ -227,7 +238,7 @@ function mock(f::Function, ctx::Symbol, args...)
 
     # We use `invokelatest` since we've only just created the functions we need to call.
     c = invokelatest(Ctx; metadata=Dict(zip(funcs, mocks)))
-    invokelatest(overdub, c, f, mocks...)
+    return invokelatest(overdub, c, f, mocks...)
 end
 
 end
