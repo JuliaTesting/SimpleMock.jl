@@ -32,7 +32,7 @@ export
     reset!
 
 const DEFAULT = gensym()
-const SYMBOL = Ref{Symbol}(:_)
+const SYMBOL = Ref(:_)
 
 module Contexts
 using Cassette: Cassette
@@ -213,34 +213,39 @@ function mock(f::Function, args...)
 end
 
 function mock(f::Function, ctx::Symbol, args...)
-    funcs = []  # Functions to be mocked.
-    mocks = []  # Corresponding Mock objects (or anything else, really).
+    mocks = Dict()  # Mapping of function => mock (or something from the  user).
     foreach(args) do arg
         if arg isa Pair
-            push!(funcs, arg.first)
-            push!(mocks, arg.second)
+            mocks[arg.first] = arg.second
         else
-            push!(funcs, arg)
-            push!(mocks, Mock())
+            mocks[arg] = Mock()
         end
     end
 
     # Create the Context type if it doesn't already exist.
-    isdefined(Contexts, ctx) || @eval Contexts Cassette.@context $ctx
-    Ctx = getfield(Contexts, ctx)
+    ctx_is_new, Ctx = if isdefined(Contexts, ctx)
+        false, getfield(Contexts, ctx)
+    else
+        true, @eval Contexts Cassette.@context $ctx
+    end
 
     # Compute the function types to overdub.
-    F = Union{map(typeof, funcs)...}
+    F = Union{map(typeof, collect(keys(mocks)))...}
 
     # Implement the overdub, but only if it's not already implemented.
-    if !overdub_exists(Ctx, F)
+    overdub_is_new = !overdub_exists(Ctx, F)
+    if overdub_is_new
         @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, args...; kwargs...) =
             ctx.metadata[f](args...; kwargs...)
     end
 
-    # We use `invokelatest` since we've only just created the functions we need to call.
-    c = invokelatest(Ctx; metadata=Dict(zip(funcs, mocks)))
-    return invokelatest(overdub, c, f, mocks...)
+    # Only use `invokelatest` if the Context/overdub implementations are new.
+    c = ctx_is_new ? invokelatest(Ctx; metadata=mocks) : Ctx(; metadata=mocks)
+    return if overdub_is_new
+        invokelatest(overdub, c, f, values(mocks)...)
+    else
+        overdub(c, f, values(mocks)...)
+    end
 end
 
 # Has a function (or Union of functions) already been overdubbed for a given Context?
