@@ -8,7 +8,7 @@ For usage examples, see [`mock`](@ref).
 ## Differences from `unittest.mock`
 
 - SimpleMock only implements mocking of function calls, as opposed to arbitrary monkey-patching.
-- Neither `getfield` nor `setfield!` is not implemented for the default [`Mock`](@ref) object.
+- Neither `getfield` nor `setfield!` is implemented for the default [`Mock`](@ref) type.
 """
 module SimpleMock
 
@@ -189,23 +189,59 @@ Run `f` with specified functions replaced with [`Mock`](@ref)s.
 Mocking a single function:
 
 ```julia
-mock(get) do get
-    Base.get(1)  # Would normally throw a `MethodError`.
-    @assert called_once_with(get, 1)
+f(args...) = get(args...)
+mock(get) do g
+    f(1)  # Would normally throw a `MethodError` for `get`.
+    @assert called_once_with(g, 1)
 end
 ```
 
 Mocking a function with a custom `Mock`:
 ```julia
-mock(get => Mock(; return_value=1)) do get
-    @assert Base.get(1) == 1
-    @assert called_once_with(get, 1)
+f(args...) = get(args...)
+mock(get => Mock(; return_value=1)) do g
+    @assert f(1, 2, 3) == 1
+    @assert called_once_with(g, 1, 2, 3)
+end
+```
+
+Mocking with something other than a `Mock`:
+```julia
+f(x) = get(x)
+mock(get => x -> 2x) do _g
+    @assert f(2) == 4
 end
 ```
 
 ## Reusing A `Context`
 
-**TODO**: doc about reusing `Context` types.
+Under the hood, this function creates a new [Cassette `Context`](https://jrevels.github.io/Cassette.jl/stable/api.html#Cassette.Context) on every call by default.
+This provides a nice clean mocking environment, but it can be slow to create and call new types and methods over and over.
+If you find yourself repeatedly mocking the same set of functions, you can specify a context name to reuse that context like so:
+
+```julia
+julia> ctx = gensym();
+
+# The first time is a bit slower.
+julia> @time mock(g -> @assert(!called(g)), ctx, get)
+  0.057888 seconds (101.74 k allocations: 5.742 MiB)
+
+# But this one is fast!
+julia> @time mock(g -> @assert(!called(g)), ctx, get)
+  0.005509 seconds (5.23 k allocations: 258.584 KiB)
+```
+
+Be careful though!
+If you call a function that you've previously mocked but are not currently mocking, you'll run into trouble:
+
+```julia
+julia> f(s) = strip(uppercase(s));
+julia> ctx = gensym();
+
+julia> mock(_g -> f(" hi "), ctx, strip);
+julia> mock(_g -> f(" hi "), ctx, uppercase)
+ERROR: KeyError: key strip not found
+```
 """
 function mock(f::Function, args...)
     name = SYMBOL[] = Symbol(SYMBOL[], :A)
