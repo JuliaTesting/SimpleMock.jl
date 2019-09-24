@@ -121,24 +121,26 @@ using SimpleMock
     @testset "mock" begin
         # We're not using @test in the mock block because it breaks everything (#2).
 
-        result = mock(get) do get
-            Base.get()
-            called_once_with(get)
+        result = mock(get) do g
+            get()
+            called_once_with(g)
         end
         @test result
 
-        result = mock(identity) do ident
+        result = mock(identity) do id
             identity(1, 2, 3)
             identity()
             [
-                called(ident),
-                called_with(ident, 1, 2, 3),
-                !called_once(ident),
-                ncalls(ident) == 2,
-                has_call(ident, Call(1, 2, 3)),
-                has_calls(ident, Call(1, 2, 3), Call()),
+                called(id),
+                called_with(id, 1, 2, 3),
+                !called_once(id),
+                ncalls(id) == 2,
+                has_call(id, Call(1, 2, 3)),
+                has_calls(id, Call(1, 2, 3), Call()),
             ]
         end
         @test all(result)
+
+        @test mock(_id -> identity(2) == 4, identity => x -> 2x)
     end
 end
