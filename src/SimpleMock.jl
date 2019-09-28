@@ -243,20 +243,15 @@ julia> mock(_g -> f(" hi "), ctx, uppercase)
 ERROR: KeyError: key strip not found
 ```
 """
+function mock end
+
 function mock(f::Function, args...)
     name = SYMBOL[] = Symbol(SYMBOL[], :A)
     return mock(f, name, args...)
 end
 
 function mock(f::Function, ctx::Symbol, args...)
-    mocks = Dict()  # Mapping of function => mock (or something from the  user).
-    foreach(args) do arg
-        if arg isa Pair
-            mocks[arg.first] = arg.second
-        else
-            mocks[arg] = Mock()
-        end
-    end
+    mocks = map(sig2mock, args)  # ((f, sig) => mock).
 
     # Create the Context type if it doesn't already exist.
     ctx_is_new, Ctx = if isdefined(Contexts, ctx)
@@ -265,29 +260,58 @@ function mock(f::Function, ctx::Symbol, args...)
         true, @eval Contexts Cassette.@context $ctx
     end
 
-    # Compute the function types to overdub.
-    F = Union{map(typeof, collect(keys(mocks)))...}
-
     # Implement the overdub, but only if it's not already implemented.
-    overdub_is_new = !overdub_exists(Ctx, F)
-    if overdub_is_new
-        @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, args...; kwargs...) =
-            ctx.metadata[f](args...; kwargs...)
+    overdub_is_new = any(map(first, mocks)) do k
+        fun = k[1]
+        sig = k[2:end]
+
+        if overdub_exists(Ctx, fun, sig)
+            false
+        else
+            make_overdub(Ctx, fun, sig)
+            true
+        end
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
-    c = ctx_is_new ? invokelatest(Ctx; metadata=mocks) : Ctx(; metadata=mocks)
-    return if overdub_is_new
-        invokelatest(overdub, c, f, values(mocks)...)
-    else
-        overdub(c, f, values(mocks)...)
-    end
+    mocks_d = Dict(mocks)
+    c = ctx_is_new ? invokelatest(Ctx; metadata=mocks_d) : Ctx(; metadata=mocks_d)
+    od_args = [c, f, map(last, mocks)...]
+    return overdub_is_new ? invokelatest(overdub, od_args...) : overdub(od_args...)
 end
 
-# Has a function (or Union of functions) already been overdubbed for a given Context?
-overdub_exists(::Type{Ctx}, ::Type{F}) where {Ctx, F} = any(methods(overdub)) do m
+sig2mock(p::Pair{<:Tuple}) = p
+sig2mock(p::Pair) = (p.first, Vararg{Any}) => p.second
+sig2mock(t::Tuple) = t => Mock()
+sig2mock(f) = (f, Vararg{Any}) => Mock()
+
+# Has a given function and signature already been overdubbed for a given Context?
+overdub_exists(::Type{Ctx}, ::F, sig::Tuple) where {Ctx, F} = any(methods(overdub)) do m
     Ts = unwrap_unionall(m.sig).types
-    length(Ts) >= 2 && Ts[2] === Ctx && Ts[3] === F
+    length(Ts) >= 3 && Ts[2] === Ctx && Ts[3] == F && all(map(==, Ts[4:end], sig))
+end
+
+# Implement `overdub` for a given Context, function, and signature.
+function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
+    sig_exs = Expr[]
+    sig_names = []
+
+    foreach(sig) do T
+        T_unwrapped = unwrap_unionall(T)
+        name = gensym()
+
+        # For some reason, checking with <: doesn't seem to work.
+        if T_unwrapped.name.name === :Vararg
+            push!(sig_exs, Expr(:..., Expr(:(::), name, T_unwrapped.parameters[1])))
+            push!(sig_names, Expr(:..., name))
+        else
+            push!(sig_exs, Expr(:(::), name, T))
+            push!(sig_names, name)
+        end
+    end
+
+    @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...)) =
+        ctx.metadata[($f, $(sig...))]($(sig_names...))
 end
 
 end
