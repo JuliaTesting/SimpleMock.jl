@@ -121,34 +121,90 @@ using SimpleMock
     @testset "mock" begin
         # We're not using @test in the mock block because it breaks everything (#2).
 
-        result = mock(get) do g
-            get()
-            called_once_with(g)
-        end
-        @test result
+        @testset "Basics" begin
+            result = mock(get) do g
+                get()
+                called_once_with(g)
+            end
+            @test result
 
-        result = mock(identity) do id
-            identity(1, 2, 3)
-            identity()
-            [
-                called(id),
-                called_with(id, 1, 2, 3),
-                !called_once(id),
-                ncalls(id) == 2,
-                has_call(id, Call(1, 2, 3)),
-                has_calls(id, Call(1, 2, 3), Call()),
-            ]
+            result = mock(identity) do id
+                identity(1, 2, 3)
+                identity()
+                [
+                    called(id),
+                    called_with(id, 1, 2, 3),
+                    !called_once(id),
+                    ncalls(id) == 2,
+                    has_call(id, Call(1, 2, 3)),
+                    has_calls(id, Call(1, 2, 3), Call()),
+                ]
+            end
+            @test all(result)
         end
-        @test all(result)
 
-        result = mock((+, Float64, Int) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
-            [
-                1 + 1 == 2,
-                2.0 + 1 == 6.0,
-                called_once_with(plus, 2.0, 1),
-            ]
+        @testset "Specific methods" begin
+            result = mock((+, Float64, Int) => Mock(; side_effect=(a, b) -> 2a + b)) do plus
+                [
+                    1 + 1 == 2,
+                    2.0 + 1 == 5.0,
+                    called_once_with(plus, 2.0, 1),
+                ]
+            end
+            @test all(result)
         end
-        @test all(result)
+
+        @testset "Varargs" begin
+            varargs(::Int, ::Int, ::String, ::String, ::String, ::Bool...) = true
+            varargs(args...) = false
+
+            result = mock((varargs, Vararg{Int, 2}, Vararg{String, 3}, Vararg{Bool})) do va
+                [
+                    varargs(0, 0, "", "", "") !== true,
+                    varargs(0, 0, "", "", "", false, false) !== true,
+                    !varargs(),
+                    ncalls(va) == 2,
+                    has_calls(va, Call(0, 0, "", "", ""), Call(0, 0, "", "", "", false, false)),
+                ]
+            end
+            @test all(result)
+        end
+
+        @testset "Parametric types" begin
+            params(::Vector{Int}) = 1
+            params(::Vector{Bool}) = 2
+            params(::Vector{<:AbstractString}) = 3
+            params(::Vector{T}) where T <: Number = 4
+
+            result = mock((params, Vector{Int})) do p
+                [
+                    params([1]) != 1,
+                    params([true]) == 2,
+                    called_once_with(p, [1])
+                ]
+            end
+            @test all(result)
+
+            result = mock((params, Vector{<:AbstractString})) do p
+                [
+                    params([""]) != 3,
+                    params([strip("")]) != 3,
+                    params([1.0]) == 4,
+                    ncalls(p) == 2,
+                    has_calls(p, Call([""]), Call([strip("")])),
+                ]
+            end
+            @test all(result)
+
+            result = mock((params, Vector{<:Number})) do p
+                [
+                    params([""]) == 3,
+                    params([1.0]) != 4,
+                    called_once_with(p, [1.0]),
+                ]
+            end
+            @test all(result)
+        end
 
         @test mock(_id -> identity(2) == 4, identity => x -> 2x)
     end

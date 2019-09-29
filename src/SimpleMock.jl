@@ -191,7 +191,7 @@ Mocking a single function:
 ```julia
 mock(print) do print
     println("!")  # This won't output anything.
-    @assert called_once_with(print, stdout, "!", '\n')
+    @assert called_once_with(print, stdout, "!", '\\n')
 end
 ```
 
@@ -286,6 +286,7 @@ function mock(f::Function, ctx::Symbol, args...)
     return overdub_is_new ? invokelatest(overdub, od_args...) : overdub(od_args...)
 end
 
+# Output (f, sig) => mock.
 sig2mock(p::Pair{<:Tuple}) = p
 sig2mock(p::Pair) = (p.first, Vararg{Any}) => p.second
 sig2mock(t::Tuple) = t => Mock()
@@ -303,15 +304,25 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
     sig_names = []
 
     foreach(sig) do T
-        T_unwrapped = unwrap_unionall(T)
+        T_uw = unwrap_unionall(T)
         name = gensym()
 
-        # For some reason, checking with <: doesn't seem to work.
-        if T_unwrapped.name.name === :Vararg
-            push!(sig_exs, Expr(:..., Expr(:(::), name, T_unwrapped.parameters[1])))
-            push!(sig_names, Expr(:..., name))
+        if T_uw.name.name === :Vararg
+            if T isa UnionAll && T.body isa UnionAll  # Vararg{T, N} where {T, N}.
+                T = Vararg{Any}
+            end
+            if T isa UnionAll  # Vararg{T, N} where N.
+                push!(sig_exs, :($name::$(T_uw.parameters[1])...))
+                push!(sig_names, :($name...))
+            else  # Vararg{T, N}.
+                foreach(1:T.parameters[2]) do _i
+                    push!(sig_exs, :($name::$(T.parameters[1])))
+                    push!(sig_names, name)
+                    name = gensym()
+                end
+            end
         else
-            push!(sig_exs, Expr(:(::), name, T))
+            push!(sig_exs, :($name::$T))
             push!(sig_names, name)
         end
     end
