@@ -174,15 +174,12 @@ end
 Reset a [`Mock`](@ref)'s call history and internal variables.
 Side effects and return values are preserved.
 """
-reset!(m::Mock) = empty!(m.calls)
+reset!(m::Mock) = (empty!(m.calls); m)
 
 """
     mock(f::Function[, ctx::Symbol], args...)
 
-Run `f` with specified functions replaced with [`Mock`](@ref)s.
-
-!!! warning
-    There are a few issues with this function, see them on [GitHub](https://github.com/christopher-dG/SimpleMock.jl/issues?q=is%3Aissue+is%3Aopen+label%3A%22Function%3A+mock%22).
+Run `f` with specified functions mocked out.
 
 ## Examples
 
@@ -190,12 +187,14 @@ Mocking a single function:
 
 ```julia
 mock(print) do print
+    @assert print isa Mock
     println("!")  # This won't output anything.
     @assert called_once_with(print, stdout, "!", '\\n')
 end
 ```
 
-Mocking a function with a custom `Mock`:
+Mocking a function with a custom [`Mock`](@ref):
+
 ```julia
 mock((+) => Mock(; return_value=1)) do plus
     @assert 1 + 1 == 1
@@ -203,7 +202,8 @@ mock((+) => Mock(; return_value=1)) do plus
 end
 ```
 
-Mocking a specific method:
+Mocking methods that match a given signature:
+
 ```julia
 mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
     @assert 1 + 1 == 2
@@ -213,6 +213,7 @@ end
 ```
 
 Mocking with something other than a `Mock`:
+
 ```julia
 mock((+) => (a, b) -> 2a + 2b) do _plus
     @assert 1 + 2 == 6
@@ -228,13 +229,13 @@ If you find yourself repeatedly mocking the same set of functions, you can speci
 ```julia
 julia> ctx = gensym();
 
-# The first time is a bit slower.
+# The first time takes a little while.
 julia> @time mock(g -> @assert(!called(g)), ctx, get)
-  0.057888 seconds (101.74 k allocations: 5.742 MiB)
+  0.156221 seconds (171.93 k allocations: 9.356 MiB)
 
-# But this one is fast!
+# But the next time is faster!
 julia> @time mock(g -> @assert(!called(g)), ctx, get)
-  0.005509 seconds (5.23 k allocations: 258.584 KiB)
+  0.052324 seconds (27.38 k allocations: 1.437 MiB)
 ```
 
 Be careful though!
@@ -246,7 +247,7 @@ julia> ctx = gensym();
 
 julia> mock(_g -> f(" hi "), ctx, strip);
 julia> mock(_g -> f(" hi "), ctx, uppercase)
-ERROR: KeyError: key strip not found
+ERROR: KeyError: key (strip, Vararg{Any,N} where N) not found
 ```
 """
 function mock end
