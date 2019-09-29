@@ -5,10 +5,16 @@ A basic mocking module, inspired by Python's [`unittest.mock`](https://docs.pyth
 ```jl
 using SimpleMock
 
-f(args...) = get(args...)
+mock(print) do print
+    println("!")  # This won't output anything.
+    @assert called_once_with(print, stdout, "!", '\n')
+end
 
-mock(get) do g
-    f(1)  # Would normally throw a `MethodError` for `get`.
-    @assert called_once_with(g, 1)
+mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
+    @assert 1 + 1 == 2
+    @assert 2.0 + 2.0 == 8
+    @assert called_once_with(plus, 2.0, 2.0)
 end
 ```
+
+See the documentation for more details and examples.

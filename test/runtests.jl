@@ -141,6 +141,15 @@ using SimpleMock
         end
         @test all(result)
 
+        result = mock((+, Float64, Int) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
+            [
+                1 + 1 == 2,
+                2.0 + 1 == 6.0,
+                called_once_with(plus, 2.0, 1),
+            ]
+        end
+        @test all(result)
+
         @test mock(_id -> identity(2) == 4, identity => x -> 2x)
     end
 end

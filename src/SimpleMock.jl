@@ -189,27 +189,33 @@ Run `f` with specified functions replaced with [`Mock`](@ref)s.
 Mocking a single function:
 
 ```julia
-f(args...) = get(args...)
-mock(get) do g
-    f(1)  # Would normally throw a `MethodError` for `get`.
-    @assert called_once_with(g, 1)
+mock(print) do print
+    println("!")  # This won't output anything.
+    @assert called_once_with(print, stdout, "!", '\n')
 end
 ```
 
 Mocking a function with a custom `Mock`:
 ```julia
-f(args...) = get(args...)
-mock(get => Mock(; return_value=1)) do g
-    @assert f(1, 2, 3) == 1
-    @assert called_once_with(g, 1, 2, 3)
+mock((+) => Mock(; return_value=1)) do plus
+    @assert 1 + 1 == 1
+    @assert called_once_with(plus, 1, 1)
+end
+```
+
+Mocking a specific method:
+```julia
+mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
+    @assert 1 + 1 == 2
+    @assert 2.0 + 2.0 == 8
+    @assert called_once_with(plus, 2.0, 2.0)
 end
 ```
 
 Mocking with something other than a `Mock`:
 ```julia
-f(x) = get(x)
-mock(get => x -> 2x) do _g
-    @assert f(2) == 4
+mock((+) => (a, b) -> 2a + 2b) do _plus
+    @assert 1 + 2 == 6
 end
 ```
 
@@ -288,7 +294,7 @@ sig2mock(f) = (f, Vararg{Any}) => Mock()
 # Has a given function and signature already been overdubbed for a given Context?
 overdub_exists(::Type{Ctx}, ::F, sig::Tuple) where {Ctx, F} = any(methods(overdub)) do m
     Ts = unwrap_unionall(m.sig).types
-    length(Ts) >= 3 && Ts[2] === Ctx && Ts[3] == F && all(map(==, Ts[4:end], sig))
+    length(Ts) >= 3 && Ts[2] === Ctx && Ts[3] == F && collect(Ts[4:end]) == collect(sig)
 end
 
 # Implement `overdub` for a given Context, function, and signature.
