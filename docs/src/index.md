@@ -6,7 +6,11 @@ CurrentModule = SimpleMock
 
 ```@docs
 SimpleMock
-mock
+```
+
+## The `Mock` object
+
+```@docs
 Mock
 calls
 ncalls
@@ -18,6 +22,24 @@ Call
 has_call
 has_calls
 reset!
+```
+
+## The `mock` Function
+
+```@docs
+mock
+```
+
+## Filter Functions
+
+```@docs
+max_depth
+min_depth
+except
+only
+current_depth
+current_function
+current_module
 ```
 
 ```@index

@@ -14,8 +14,9 @@ module SimpleMock
 
 using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
+using Core: Builtin, IntrinsicFunction
 
-using Cassette: overdub
+using Cassette: overdub, posthook, prehook
 
 export
     Call,
@@ -29,9 +30,15 @@ export
     called_once_with,
     has_call,
     has_calls,
-    reset!
+    reset!,
+    max_depth,
+    min_depth,
+    excluding,
+    including
 
+include("metadata.jl")
 include("Contexts.jl")
+include("filters.jl")
 include("mock_type.jl")
 include("mock_fun.jl")
 

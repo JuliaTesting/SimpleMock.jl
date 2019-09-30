@@ -141,6 +141,8 @@ using SimpleMock
                 ]
             end
             @test all(result)
+
+            @test mock(_id -> identity(2) == 4, identity => x -> 2x)
         end
 
         @testset "Specific methods" begin
@@ -205,7 +207,5 @@ using SimpleMock
             end
             @test all(result)
         end
-
-        @test mock(_id -> identity(2) == 4, identity => x -> 2x)
     end
 end

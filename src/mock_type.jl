@@ -32,7 +32,7 @@ struct Mock{R, S}
     id::Symbol
     calls::Vector{Call}
     ret::R
-    effect::S
+    eff::S
 end
 
 Mock(; return_value::R=DEFAULT, side_effect::S=nothing) where {R, S} =
@@ -52,7 +52,7 @@ Either way, the call is recorded in the original `Mock`'s history.
 function (m::Mock)(args...; kwargs...)
     push!(calls(m), Call(args...; kwargs...))
 
-    effect = m.effect
+    effect = m.eff
     effect isa Vector && (effect = popfirst!(effect))
     effect isa Exception && throw(effect)
     effect isa Callable && return effect(args...; kwargs...)  # TODO: Arbitrary callable types.

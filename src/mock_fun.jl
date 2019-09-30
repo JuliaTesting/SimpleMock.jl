@@ -2,7 +2,7 @@ const DEFAULT = gensym()
 const SYMBOL = Ref(:_)
 
 """
-    mock(f::Function[, ctx::Symbol], args...)
+    mock(f::Function[, ctx::Symbol], args...; filters::Vector{<:Function}=Function[])
 
 Run `f` with specified functions mocked out.
 
@@ -11,10 +11,10 @@ Run `f` with specified functions mocked out.
 Mocking a single function:
 
 ```julia
-mock(print) do print
-    @assert print isa Mock
+mock(print) do p
+    @assert p isa Mock
     println("!")  # This won't output anything.
-    @assert called_once_with(print, stdout, "!", '\\n')
+    @assert called_once_with(p, stdout, "!", '\\n')
 end
 ```
 
@@ -45,7 +45,54 @@ mock((+) => (a, b) -> 2a + 2b) do _plus
 end
 ```
 
-## Reusing A `Context`
+## Using Filters
+
+Oftentimes, you mock a function with a very specific idea of where you want that mocking to happen.
+It can be confusing when a call you didn't anticipate gets mocked somewhere deep in the call stack, botching everything.
+To avoid this, you can use filter functions, like so:
+
+```julia
+mock(print; filters=[max_depth(2)]) do p
+```
+
+Filter function take a single argument of type [`Metadata`](@ref), and are aware of the call depth ([`current_depth`](@ref)) and the current function/module ([`current_function`](@ref)/[`current_module`](@ref)).
+See [Filter Functions](@ref) for a list of built-in filters, as well as building blocks for you to create your own.
+
+## Performance Tips
+
+### Keep It Simple
+
+Mocking is, unfortunately, not without overhead.
+Therefore, it helps to do as little work as possible in the mocked environment.
+
+A notable example is the `@test` macro from the standard library's Test module.
+Writing code like this might be intuitive:
+
+```julia
+mock(foo) do f
+    @test bar() == baz()
+    @test ncalls(f) == 2
+    @test called_with(f, 1, 2, 3)
+    @test !called_with(f, 4, 5, 6)
+end
+```
+
+However, it's going to be really slow, because `@test` expands to a pretty big chunk of code.
+Something like this will be significantly faster:
+
+```julia
+result = mock(foo) do f
+    [
+        bar() == baz(),
+        ncalls(f) == 2,
+        called_with(f, 1, 2, 3),
+        !called_with(f, 4, 5, 6),
+    ]
+end
+@test all(result)
+```
+
+### Reuse Your `Context`s
 
 Under the hood, this function creates a new [Cassette `Context`](https://jrevels.github.io/Cassette.jl/stable/api.html#Cassette.Context) on every call by default.
 This provides a nice clean mocking environment, but it can be slow to create and call new types and methods over and over.
@@ -70,19 +117,19 @@ If you call a function that you've previously mocked but are not currently mocki
 julia> f(s) = strip(uppercase(s));
 julia> ctx = gensym();
 
-julia> mock(_g -> f(" hi "), ctx, strip);
-julia> mock(_g -> f(" hi "), ctx, uppercase)
+julia> mock(_g -> f(" hi "), ctx, strip => s -> "hi");
+julia> mock(_g -> f(" hi "), ctx, uppercase => s -> " HI ")
 ERROR: KeyError: key (strip, Vararg{Any,N} where N) not found
 ```
 """
 function mock end
 
-function mock(f::Function, args...)
+function mock(f::Function, args...; filters::Vector{<:Function}=Function[])
     name = SYMBOL[] = Symbol(SYMBOL[], :A)
-    return mock(f, name, args...)
+    return mock(f, name, args...; filters=filters)
 end
 
-function mock(f::Function, ctx::Symbol, args...)
+function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Function[])
     mocks = map(sig2mock, args)  # ((f, sig) => mock).
 
     # Create the Context type if it doesn't already exist.
@@ -95,9 +142,9 @@ function mock(f::Function, ctx::Symbol, args...)
     # Implement the tracking hooks necessary for filtering.
     if ctx_is_new
         @eval Contexts begin
-            Cassette.prehook(ctx::$Ctx, f, args...; _kwargs...) =
+            @inline Cassette.prehook(ctx::$Ctx, f, args...) =
                 update!(ctx.metadata, prehook, f, args...)
-            Cassette.posthook(ctx::$Ctx, _v, f, args...; _kwargs...) =
+            @inline Cassette.posthook(ctx::$Ctx, _v, f, args...) =
                 update!(ctx.metadata, posthook, f, args...)
         end
     end
@@ -116,7 +163,7 @@ function mock(f::Function, ctx::Symbol, args...)
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
-    meta = Contexts.Metadata(Dict(mocks))
+    meta = Metadata(Dict(mocks), filters)
     c = ctx_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
     od_args = [c, f, map(last, mocks)...]
     return overdub_is_new ? invokelatest(overdub, od_args...) : overdub(od_args...)
@@ -164,5 +211,9 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
     end
 
     @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...)) =
-        ctx.metadata.mocks[($f, $(sig...))]($(sig_names...))
+        if should_mock(ctx.metadata)
+            ctx.metadata.mocks[($f, $(sig...))]($(sig_names...))
+        else
+            recurse(f, $(sig_names...))
+        end
 end
