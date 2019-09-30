@@ -1,10 +1,10 @@
-struct Metadata
+struct Metadata{B}
     mocks::Dict{<:Tuple, <:Any}
     filters::Vector{<:Function}
     mods::Vector{Module}
     funcs::Vector{Any}
 
-    Metadata(mocks, filters) = new(mocks, filters, [Main], [nothing])
+    Metadata(mocks, filters) = new{!isempty(filters)}(mocks, filters, [Main], [nothing])
 end
 
 """
@@ -41,10 +41,13 @@ Return the current module, where "current" has the same definition as in [`curre
 current_module(m::Metadata) = m.mods[end-1]
 
 # Ensure that the current state satisfies all filters.n
+should_mock(::Metadata{false}) = true
 should_mock(m::Metadata) = all(f -> f(m), m.filters)
 
-# Update the call depth and function/module stacks.
-function update!(m::Metadata, ::typeof(prehook), f, args...)
+# Update the function/module stacks.
+update!(::Metadata{false}, @nospecialize(_args...)) = nothing
+
+function update!(m::Metadata{true}, ::typeof(prehook), f, args...)
     Ts = Tuple{map(typeof, args)...}
     mod = if f isa Union{Builtin, IntrinsicFunction} || !hasmethod(f, Ts)
         parentmodule(f)
@@ -55,7 +58,7 @@ function update!(m::Metadata, ::typeof(prehook), f, args...)
     push!(m.mods, mod)
 end
 
-function update!(m::Metadata, ::typeof(posthook), _args...)
+function update!(m::Metadata{true}, ::typeof(posthook), _args...)
     pop!(m.funcs)
     pop!(m.mods)
 end

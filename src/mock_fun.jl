@@ -64,33 +64,12 @@ See [Filter Functions](@ref) for a list of built-in filters, as well as building
 
 Mocking is, unfortunately, not without overhead.
 Therefore, it helps to do as little work as possible in the mocked environment.
+Try to avoid things like wrapping entire `@testset`s in mock blocks.
 
-A notable example is the `@test` macro from the standard library's Test module.
-Writing code like this might be intuitive:
+### Don't Filter Unless Necessary
 
-```julia
-mock(foo) do f
-    @test bar() == baz()
-    @test ncalls(f) == 2
-    @test called_with(f, 1, 2, 3)
-    @test !called_with(f, 4, 5, 6)
-end
-```
-
-However, it's going to be really slow, because `@test` expands to a pretty big chunk of code.
-Something like this will be significantly faster:
-
-```julia
-result = mock(foo) do f
-    [
-        bar() == baz(),
-        ncalls(f) == 2,
-        called_with(f, 1, 2, 3),
-        !called_with(f, 4, 5, 6),
-    ]
-end
-@test all(result)
-```
+Filtering introduces a significant bookkeeping overhead.
+Avoid it whenever possible!
 
 ### Reuse Your `Context`s
 
@@ -142,10 +121,14 @@ function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Fun
     # Implement the tracking hooks necessary for filtering.
     if ctx_is_new
         @eval Contexts begin
-            @inline Cassette.prehook(ctx::$Ctx, f, args...) =
+            @noinline function Cassette.prehook(ctx::$Ctx, f, args...)
+                @nospecialize f args
                 update!(ctx.metadata, prehook, f, args...)
-            @inline Cassette.posthook(ctx::$Ctx, _v, f, args...) =
+            end
+            @noinline function Cassette.posthook(ctx::$Ctx, v, f, args...)
+                @nospecialize v f args
                 update!(ctx.metadata, posthook, f, args...)
+            end
         end
     end
 
