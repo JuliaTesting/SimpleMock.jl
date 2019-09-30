@@ -35,8 +35,9 @@ mock
 ```@docs
 max_depth
 min_depth
-except
-only
+excluding
+including
+Metadata
 current_depth
 current_function
 current_module

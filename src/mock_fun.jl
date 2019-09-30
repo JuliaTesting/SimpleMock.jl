@@ -1,4 +1,3 @@
-const DEFAULT = gensym()
 const SYMBOL = Ref(:_)
 
 """
@@ -52,23 +51,47 @@ It can be confusing when a call you didn't anticipate gets mocked somewhere deep
 To avoid this, you can use filter functions, like so:
 
 ```julia
+f(x) = print(x)
+g(x) = f(x)
 mock(print; filters=[max_depth(2)]) do p
+    f("this won't print")  # The call depth of print here is 2.
+    g("this will print")   # Here, it's 3.
+    @assert called_once_with(p, "this won't print")
+end
 ```
 
-Filter function take a single argument of type [`Metadata`](@ref), and are aware of the call depth ([`current_depth`](@ref)) and the current function/module ([`current_function`](@ref)/[`current_module`](@ref)).
-See [Filter Functions](@ref) for a list of built-in filters, as well as building blocks for you to create your own.
+Filter functions take a single argument of type [`Metadata`](@ref).
+See [Filter Functions](@ref) for a list of included filters, as well as building blocks for you to create your own.
 
 ## Performance Tips
 
-### Keep It Simple
+### Avoid Printing
 
-Mocking is, unfortunately, not without overhead.
-Therefore, it helps to do as little work as possible in the mocked environment.
-Try to avoid things like wrapping entire `@testset`s in mock blocks.
+Printing is, for whatever reason, glacially slow inside of mock blocks.
+To illustrate:
+
+```julia
+julia> @time mock(println, log)
+Mock{Symbol,Nothing}(Symbol("##390"), Call[], Symbol("##371"), nothing)
+  7.389156 seconds (19.52 M allocations: 1.029 GiB, 7.71% gc time)
+
+julia> @time println(mock(identity, log))
+Mock{Symbol,Nothing}(Symbol("##394"), Call[], Symbol("##371"), nothing)
+  0.136950 seconds (120.96 k allocations: 6.507 MiB
+```
+
+Unfortunately, this includes the display of failed `@test`s, so it's wise to avoid making assertions in the mocked environment.
+
+```julia
+#= bad:  =# mock(lg -> @test(!called(lg), log)
+#= good: =# @test !called(mock(identity, log))
+```
+
+The second strategy is orders of magnitude faster than the first when the test fails, and it's also faster when the test passes.
 
 ### Don't Filter Unless Necessary
 
-Filtering introduces a significant bookkeeping overhead.
+Filtering introduces significant bookkeeping overhead.
 Avoid it whenever possible!
 
 ### Reuse Your `Context`s
@@ -197,6 +220,6 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
         if should_mock(ctx.metadata)
             ctx.metadata.mocks[($f, $(sig...))]($(sig_names...))
         else
-            recurse(f, $(sig_names...))
+            recurse(ctx, f, $(sig_names...))
         end
 end

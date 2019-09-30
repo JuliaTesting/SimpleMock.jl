@@ -1,3 +1,9 @@
+"""
+Container for mocks and bookkeeping data.
+Instances of this type are aware of the call depth ([`current_depth`](@ref)) and the current function/module ([`current_function`](@ref)/[`current_module`](@ref)).
+
+All filter functions take a single argument of this type.
+"""
 struct Metadata{B}
     mocks::Dict{<:Tuple, <:Any}
     filters::Vector{<:Function}
@@ -11,13 +17,14 @@ end
     current_depth(::Metadata) -> Int
 
 Return the current call depth (the size of the call stack).
+The depth is always positive, so the first function entered has a depth of 1.
 """
 current_depth(m::Metadata) = length(m.funcs) - 1
 
 """
     current_function(::Metadata) -> Any
 
-Return the current function.
+Return the current function (or other callable thing).
 In this case, "current" refers, somewhat counterintuitively, not to the function about to be called, but to the function that is about to call it.
 
 To illustrate:
@@ -48,6 +55,7 @@ should_mock(m::Metadata) = all(f -> f(m), m.filters)
 update!(::Metadata{false}, @nospecialize(_args...)) = nothing
 
 function update!(m::Metadata{true}, ::typeof(prehook), f, args...)
+    @nospecialize f args
     Ts = Tuple{map(typeof, args)...}
     mod = if f isa Union{Builtin, IntrinsicFunction} || !hasmethod(f, Ts)
         parentmodule(f)

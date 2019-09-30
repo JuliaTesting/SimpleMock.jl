@@ -1,3 +1,5 @@
+const DEFAULT = gensym()
+
 """
     Call(args...; kwargs...)
 
@@ -15,18 +17,20 @@ Base.:(==)(a::Call, b::Call) = a.args == b.args && a.kwargs == b.kwargs
 """
     Mock(; return_value=Mock(), side_effect=nothing)
 
-Create a new mocking object, which behaves similarly to Python's [`Mock`](https://docs.python.org/3/library/unittest.mock.html#unittest.mock.Mock).
+Create a new mocking object that can act as a replacement for a function.
 
 ## Return Value
+
 Use the `return_value` keyword to set the value to be returned upon calling the mock.
 By default, the return value is a new `Mock`.
 
 ## Side Effects
+
 Use the `side_effect` keyword to set a side effect to occur upon calling the mock.
 - If the value is an `Exception`, then the exception is thrown.
 - If the value is a function, then it is called with the same arguments and keywords.
 - If the value is a `Vector`, then each call uses the next element.
-- Any other value is returned without modification.
+- Any other value except `nothing` is returned without modification.
 """
 struct Mock{R, S}
     id::Symbol
@@ -131,7 +135,7 @@ end
 """
     reset!(::Mock)
 
-Reset a [`Mock`](@ref)'s call history and internal variables.
+Reset a [`Mock`](@ref)'s call history.
 Side effects and return values are preserved.
 """
 reset!(m::Mock) = (empty!(m.calls); m)

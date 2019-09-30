@@ -1,14 +1,5 @@
 """
 A basic mocking module, inspired by Python's [`unittest.mock`](https://docs.python.org/3/library/unittest.mock.html) and implemented with [Cassette](https://github.com/jrevels/Cassette.jl).
-
-## Usage
-
-For usage examples, see [`mock`](@ref).
-
-## Differences from `unittest.mock`
-
-- SimpleMock only implements mocking of function calls, as opposed to arbitrary monkey-patching.
-- Neither `getfield` nor `setfield!` is implemented for the default [`Mock`](@ref) type.
 """
 module SimpleMock
 
