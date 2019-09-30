@@ -14,6 +14,7 @@ module SimpleMock
 
 using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
+using Core: Builtin, IntrinsicFunction
 
 using Cassette: overdub
 
@@ -35,7 +36,48 @@ const DEFAULT = gensym()
 const SYMBOL = Ref(:_)
 
 module Contexts
-using Cassette: Cassette
+
+using Cassette: Cassette, posthook, prehook, @context
+
+mutable struct Metadata
+    mocks::Dict{<:Tuple, <:Any}
+    depth::Int  # The current call depth.
+    mods::Vector{Module}
+    funcs::Vector{Any}
+
+    Metadata(mocks) = new(mocks, 0, [Main], [nothing])
+end
+
+current_depth(m::Metadata) = m.depth
+
+# These functions indicate the function and module of the *outer* call.
+# For exampel, if Foo.add calls +, then inside +:
+# - current_function is Foo.add
+# - current_module is Foo
+current_function(m::Metadata) = m.funcs[end-1]
+current_module(m::Metadata) = m.mods[end-1]
+
+function update!(m::Metadata, ::typeof(prehook), f, args...)
+    m.depth += 1
+    push!(m.funcs, f)
+
+    Ts = Tuple{map(typeof, args)...}
+    if f isa Builtin || f isa IntrinsicFunction || !hasmethod(f, Ts)
+        push!(m.mods, parentmodule(f))
+    else
+        push!(m.mods, parentmodule(f, Tuple{map(typeof, args)...}))
+    end
+
+    return m
+end
+
+function update!(m::Metadata, ::typeof(posthook), f, args...)
+    m.depth -= 1
+    pop!(m.funcs)
+    pop!(m.mods)
+    return m
+end
+
 end
 
 """
@@ -264,7 +306,17 @@ function mock(f::Function, ctx::Symbol, args...)
     ctx_is_new, Ctx = if isdefined(Contexts, ctx)
         false, getfield(Contexts, ctx)
     else
-        true, @eval Contexts Cassette.@context $ctx
+        true, @eval Contexts @context $ctx
+    end
+
+    # Implement the tracking hooks necessary for filtering.
+    if ctx_is_new
+        @eval Contexts begin
+            Cassette.prehook(ctx::$Ctx, f, args...; _kwargs...) =
+                update!(ctx.metadata, prehook, f, args...)
+            Cassette.posthook(ctx::$Ctx, _v, f, args...; _kwargs...) =
+                update!(ctx.metadata, posthook, f, args...)
+        end
     end
 
     # Implement the overdub, but only if it's not already implemented.
@@ -281,8 +333,8 @@ function mock(f::Function, ctx::Symbol, args...)
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
-    mocks_d = Dict(mocks)
-    c = ctx_is_new ? invokelatest(Ctx; metadata=mocks_d) : Ctx(; metadata=mocks_d)
+    meta = Contexts.Metadata(Dict(mocks))
+    c = ctx_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
     od_args = [c, f, map(last, mocks)...]
     return overdub_is_new ? invokelatest(overdub, od_args...) : overdub(od_args...)
 end
@@ -329,7 +381,7 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
     end
 
     @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...)) =
-        ctx.metadata[($f, $(sig...))]($(sig_names...))
+        ctx.metadata.mocks[($f, $(sig...))]($(sig_names...))
 end
 
 end
