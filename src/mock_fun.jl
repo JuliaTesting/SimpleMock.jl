@@ -72,7 +72,7 @@ To avoid this, you can use filter functions like so:
 f(x, y) = x + y
 g(x, y) = f(x, y)
 mock((+) => Mock(; side_effect=(a, b) -> 2a + 2b); filters=[max_depth(2)]) do plus
-    @assert f(1, 2) == 6  # The call depth of print here is 2.
+    @assert f(1, 2) == 6  # The call depth of + here is 2.
     @assert g(3, 4) == 7  # Here, it's 3.
     @assert called_once_with(plus, 1, 2)
 end
