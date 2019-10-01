@@ -5,6 +5,11 @@ const SYMBOL = Ref(:_)
 
 Run `f` with specified functions mocked out.
 
+!!! note
+    Keyword arguments to mocked functions are not supported.
+    If you call a mocked function with keyword arguments, it will dispatch to the original function.
+    For more details, see [Cassette#48](https://github.com/jrevels/Cassette.jl/issues/48).
+
 ## Examples
 
 Mocking a single function:
@@ -48,7 +53,7 @@ end
 
 Oftentimes, you mock a function with a very specific idea of where you want that mocking to happen.
 It can be confusing when a call you didn't anticipate gets mocked somewhere deep in the call stack, botching everything.
-To avoid this, you can use filter functions, like so:
+To avoid this, you can use filter functions like so:
 
 ```julia
 f(x) = print(x)
@@ -61,6 +66,7 @@ end
 ```
 
 Filter functions take a single argument of type [`Metadata`](@ref).
+If any filter rejects, then mocking is not performed.
 See [Filter Functions](@ref) for a list of included filters, as well as building blocks for you to create your own.
 
 ## Performance Tips
@@ -80,7 +86,7 @@ Mock{Symbol,Nothing}(Symbol("##394"), Call[], Symbol("##371"), nothing)
   0.136950 seconds (120.96 k allocations: 6.507 MiB
 ```
 
-Unfortunately, this includes the display of failed `@test`s, so it's wise to avoid making assertions in the mocked environment.
+This includes the display of failed `@test`s,  so it's wise to avoid making test assertions in the mocked environment.
 
 ```julia
 #= bad:  =# mock(lg -> @test(!called(lg), log)

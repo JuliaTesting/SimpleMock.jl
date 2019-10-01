@@ -5,9 +5,9 @@ A basic mocking module, inspired by Python's [`unittest.mock`](https://docs.pyth
 ```jl
 using SimpleMock
 
-mock(print) do print
+mock(print) do p
     println("!")  # This won't output anything.
-    @assert called_once_with(print, stdout, "!", '\n')
+    @assert called_once_with(p, stdout, "!", '\n')
 end
 
 mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus

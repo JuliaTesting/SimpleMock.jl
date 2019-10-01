@@ -43,5 +43,7 @@ current_function
 current_module
 ```
 
+## Index
+
 ```@index
 ```

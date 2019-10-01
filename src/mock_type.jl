@@ -28,7 +28,7 @@ By default, the return value is a new `Mock`.
 
 Use the `side_effect` keyword to set a side effect to occur upon calling the mock.
 - If the value is an `Exception`, then the exception is thrown.
-- If the value is a function, then it is called with the same arguments and keywords.
+- If the value is callable, then it is called with the same arguments and keywords.
 - If the value is a `Vector`, then each call uses the next element.
 - Any other value except `nothing` is returned without modification.
 """
