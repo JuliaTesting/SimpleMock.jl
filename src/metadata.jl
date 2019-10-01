@@ -54,10 +54,7 @@ should_mock(m::Metadata{false}, method::Tuple) = method in m.methods
 should_mock(m::Metadata, method::Tuple) = method in m.methods && all(f -> f(m), m.filters)
 
 # Update the function/module stacks.
-update!(::Metadata{false}, @nospecialize(_args...)) = nothing
-
-function update!(m::Metadata{true}, ::typeof(prehook), f, args...)
-    @nospecialize f args
+function update!(m::Metadata, ::typeof(prehook), @nospecialize(f), @nospecialize(args...))
     Ts = Tuple{map(typeof, args)...}
     mod = if f isa Union{Builtin, IntrinsicFunction} || !hasmethod(f, Ts)
         parentmodule(f)
@@ -68,7 +65,7 @@ function update!(m::Metadata{true}, ::typeof(prehook), f, args...)
     push!(m.mods, mod)
 end
 
-function update!(m::Metadata{true}, ::typeof(posthook), _args...)
+function update!(m::Metadata, ::typeof(posthook), @nospecialize(args...))
     pop!(m.funcs)
     pop!(m.mods)
 end

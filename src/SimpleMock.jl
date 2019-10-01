@@ -7,7 +7,7 @@ using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
 using Core: Builtin, IntrinsicFunction
 
-using Cassette: overdub, posthook, prehook
+using Cassette: Cassette, overdub, posthook, prehook, recurse, @context
 
 export
     Call,
@@ -28,7 +28,6 @@ export
     including
 
 include("metadata.jl")
-include("Contexts.jl")
 include("filters.jl")
 include("mock_type.jl")
 include("mock_fun.jl")

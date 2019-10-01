@@ -1,7 +1,19 @@
-const SYMBOL = Ref(:_)
+@context MockCtx
+
+# TODO: Maybe these should be inlined, but it slows down compilation a lot.
+
+@noinline function Cassette.prehook(ctx::MockCtx{Metadata{true}}, f, args...)
+    @nospecialize f args
+    update!(ctx.metadata, prehook, f, args...)
+end
+
+@noinline function Cassette.posthook(ctx::MockCtx{Metadata{true}}, v, f, args...)
+    @nospecialize v f args
+    update!(ctx.metadata, posthook, f, args...)
+end
 
 """
-    mock(f::Function[, ctx::Symbol], args...; filters::Vector{<:Function}=Function[])
+    mock(f::Function, args...; filters::Vector{<:Function}=Function[])
 
 Run `f` with specified functions mocked out.
 
@@ -15,10 +27,11 @@ Run `f` with specified functions mocked out.
 Mocking a single function:
 
 ```julia
-mock(print) do p
-    @assert p isa Mock
-    println("!")  # This won't output anything.
-    @assert called_once_with(p, stdout, "!", '\\n')
+f(x) = x + 1
+mock(+) do plus
+    @assert plus isa Mock
+    @assert f(0) != 1  # The call to + is mocked.
+    @assert called_once_with(p, 0, 1)
 end
 ```
 
@@ -56,117 +69,38 @@ It can be confusing when a call you didn't anticipate gets mocked somewhere deep
 To avoid this, you can use filter functions like so:
 
 ```julia
-f(x) = print(x)
-g(x) = f(x)
-mock(print; filters=[max_depth(2)]) do p
-    f("this won't print")  # The call depth of print here is 2.
-    g("this will print")   # Here, it's 3.
-    @assert called_once_with(p, "this won't print")
+f(x, y) = x + y
+g(x, y) = f(x, y)
+mock((+) => Mock(; side_effect=(a, b) -> 2a + 2b); filters=[max_depth(2)]) do plus
+    @assert f(1, 2) == 6  # The call depth of print here is 2.
+    @assert g(3, 4) == 7  # Here, it's 3.
+    @assert called_once_with(plus, 1, 2)
 end
 ```
 
 Filter functions take a single argument of type [`Metadata`](@ref).
 If any filter rejects, then mocking is not performed.
 See [Filter Functions](@ref) for a list of included filters, as well as building blocks for you to create your own.
-
-## Performance Tips
-
-### Avoid Printing
-
-Printing is, for whatever reason, glacially slow inside of mock blocks.
-To illustrate:
-
-```julia
-julia> @time mock(println, log)
-Mock{Symbol,Nothing}(Symbol("##390"), Call[], Symbol("##371"), nothing)
-  7.389156 seconds (19.52 M allocations: 1.029 GiB, 7.71% gc time)
-
-julia> @time println(mock(identity, log))
-Mock{Symbol,Nothing}(Symbol("##394"), Call[], Symbol("##371"), nothing)
-  0.136950 seconds (120.96 k allocations: 6.507 MiB
-```
-
-This includes the display of failed `@test`s,  so it's wise to avoid making test assertions in the mocked environment.
-
-```julia
-#= bad:  =# mock(lg -> @test(!called(lg), log)
-#= good: =# @test !called(mock(identity, log))
-```
-
-The second strategy is orders of magnitude faster than the first when the test fails, and it's also faster when the test passes.
-
-### Don't Filter Unless Necessary
-
-Filtering introduces significant bookkeeping overhead.
-Avoid it whenever possible!
-
-### Reuse Your `Context`s
-
-Under the hood, this function creates a new [Cassette `Context`](https://jrevels.github.io/Cassette.jl/stable/api.html#Cassette.Context) on every call by default.
-This provides a nice clean mocking environment, but it can be slow to create and call new types and methods over and over.
-If you find yourself repeatedly mocking the same set of functions, you can specify a context name to reuse that context like so:
-
-```julia
-julia> ctx = gensym();
-
-# The first time takes a little while.
-julia> @time mock(g -> @assert(!called(g)), ctx, get)
-  0.156221 seconds (171.93 k allocations: 9.356 MiB)
-
-# But the next time is faster!
-julia> @time mock(g -> @assert(!called(g)), ctx, get)
-  0.052324 seconds (27.38 k allocations: 1.437 MiB)
-```
 """
-function mock end
-
 function mock(f::Function, args...; filters::Vector{<:Function}=Function[])
-    name = SYMBOL[] = Symbol(SYMBOL[], :A)
-    return mock(f, name, args...; filters=filters)
-end
-
-function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Function[])
     mocks = map(sig2mock, args)  # ((f, sig) => mock).
-
-    # Create the Context type if it doesn't already exist.
-    ctx_is_new, Ctx = if isdefined(Contexts, ctx)
-        false, getfield(Contexts, ctx)
-    else
-        true, @eval Contexts @context $ctx
-    end
-
-    # Implement the tracking hooks necessary for filtering.
-    if ctx_is_new
-        @eval Contexts begin
-            @noinline function Cassette.prehook(ctx::$Ctx, f, args...)
-                @nospecialize f args
-                update!(ctx.metadata, prehook, f, args...)
-            end
-            @noinline function Cassette.posthook(ctx::$Ctx, v, f, args...)
-                @nospecialize v f args
-                update!(ctx.metadata, posthook, f, args...)
-            end
-        end
-    end
+    isempty(mocks) && throw(ArgumentError("At least one function must be mocked"))
 
     # Implement the overdub, but only if it's not already implemented.
-    overdub_is_new = any(map(first, mocks)) do k
+    has_new_overdub = any(map(first, mocks)) do k
         fun = k[1]
         sig = k[2:end]
-
-        if overdub_exists(Ctx, fun, sig)
+        if overdub_exists(fun, sig)
             false
         else
-            make_overdub(Ctx, fun, sig)
+            make_overdub(fun, sig)
             true
         end
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
-    meta = Metadata(Dict(mocks), filters)
-    c = ctx_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
-    od_args = [c, f, map(last, mocks)...]
-    return overdub_is_new ? invokelatest(overdub, od_args...) : overdub(od_args...)
+    od_args = [MockCtx(; metadata=Metadata(Dict(mocks), filters)), f, map(last, mocks)...]
+    return has_new_overdub ? invokelatest(overdub, od_args...) : overdub(od_args...)
 end
 
 # Output (f, sig) => mock.
@@ -175,14 +109,20 @@ sig2mock(p::Pair) = (p.first, Vararg{Any}) => p.second
 sig2mock(t::Tuple) = t => Mock()
 sig2mock(f) = (f, Vararg{Any}) => Mock()
 
-# Has a given function and signature already been overdubbed for a given Context?
-overdub_exists(::Type{Ctx}, ::F, sig::Tuple) where {Ctx, F} = any(methods(overdub)) do m
-    Ts = unwrap_unionall(m.sig).types
-    length(Ts) >= 3 && Ts[2] === Ctx && Ts[3] == F && collect(Ts[4:end]) == collect(sig)
+# Has a given function and signature already been overdubbed?
+overdub_exists(::F, sig::Tuple) where F = any(methods(overdub)) do m
+    squashed = reduce(sig; init=[]) do acc, T
+        if T isa DataType && T.name.name === :Vararg
+            append!(acc, repeat([T.parameters[1]], T.parameters[2]))
+        else
+            push!(acc, T)
+        end
+    end
+    m.sig === Tuple{typeof(overdub), MockCtx, F, squashed...}
 end
 
 # Implement `overdub` for a given Context, function, and signature.
-function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
+function make_overdub(f::F, sig::Tuple) where F
     sig_exs = Expr[]
     sig_names = []
 
@@ -210,7 +150,7 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
         end
     end
 
-    @eval Contexts function Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...))
+    @eval @inline function Cassette.overdub(ctx::MockCtx, f::$F, $(sig_exs...))
         method = (f, $(sig...))
         if should_mock(ctx.metadata, method)
             ctx.metadata.mocks[method]($(sig_names...))
