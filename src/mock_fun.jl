@@ -117,18 +117,6 @@ julia> @time mock(g -> @assert(!called(g)), ctx, get)
 julia> @time mock(g -> @assert(!called(g)), ctx, get)
   0.052324 seconds (27.38 k allocations: 1.437 MiB)
 ```
-
-Be careful though!
-If you call a function that you've previously mocked but are not currently mocking, you'll run into trouble:
-
-```julia
-julia> f(s) = strip(uppercase(s));
-julia> ctx = gensym();
-
-julia> mock(_g -> f(" hi "), ctx, strip => s -> "hi");
-julia> mock(_g -> f(" hi "), ctx, uppercase => s -> " HI ")
-ERROR: KeyError: key (strip, Vararg{Any,N} where N) not found
-```
 """
 function mock end
 
@@ -222,10 +210,12 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx, F}
         end
     end
 
-    @eval Contexts Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...)) =
-        if should_mock(ctx.metadata)
-            ctx.metadata.mocks[($f, $(sig...))]($(sig_names...))
+    @eval Contexts function Cassette.overdub(ctx::$Ctx, f::$F, $(sig_exs...))
+        method = (f, $(sig...))
+        if should_mock(ctx.metadata, method)
+            ctx.metadata.mocks[method]($(sig_names...))
         else
             recurse(ctx, f, $(sig_names...))
         end
+    end
 end

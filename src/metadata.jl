@@ -6,11 +6,13 @@ All filter functions take a single argument of this type.
 """
 struct Metadata{B}
     mocks::Dict{<:Tuple, <:Any}
+    methods::Set{<:Tuple}
     filters::Vector{<:Function}
     mods::Vector{Module}
     funcs::Vector{Any}
 
-    Metadata(mocks, filters) = new{!isempty(filters)}(mocks, filters, [Main], [nothing])
+    Metadata(mocks::Dict{<:Tuple}, filters::Vector{<:Function}) =
+        new{!isempty(filters)}(mocks, Set(keys(mocks)), filters, [Main], [nothing])
 end
 
 """
@@ -48,8 +50,8 @@ Return the current module, where "current" has the same definition as in [`curre
 current_module(m::Metadata) = m.mods[end-1]
 
 # Ensure that the current state satisfies all filters.n
-should_mock(::Metadata{false}) = true
-should_mock(m::Metadata) = all(f -> f(m), m.filters)
+should_mock(m::Metadata{false}, method::Tuple) = method in m.methods
+should_mock(m::Metadata, method::Tuple) = method in m.methods && all(f -> f(m), m.filters)
 
 # Update the function/module stacks.
 update!(::Metadata{false}, @nospecialize(_args...)) = nothing

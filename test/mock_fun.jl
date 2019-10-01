@@ -158,3 +158,11 @@ end
         @test all(result)
     end
 end
+
+@testset "Reusing Context" begin
+    f(x) = strip(uppercase(x))
+    ctx = gensym()
+    # If the method checks aren't working properly, this will throw.
+    @test mock(_g -> f(" hi "), ctx, strip => identity) == " HI "
+    @test mock(_g -> f(" hi "), ctx, uppercase => identity) == "hi"
+end
