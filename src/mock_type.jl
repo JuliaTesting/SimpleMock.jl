@@ -59,7 +59,7 @@ function (m::Mock)(args...; kwargs...)
     effect = m.eff
     effect isa Vector && (effect = popfirst!(effect))
     effect isa Exception && throw(effect)
-    effect isa Callable && return effect(args...; kwargs...)  # TODO: Arbitrary callable types.
+    (effect isa Callable || !isempty(methods(effect))) && return effect(args...; kwargs...)
     effect === nothing || return effect
 
     return m.ret === DEFAULT ? Mock() : m.ret

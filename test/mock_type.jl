@@ -94,4 +94,12 @@ end
 
     m = Mock(; return_value=1, side_effect=2)
     @test m() == 2
+
+    @eval begin
+        struct Foo end
+        (::Foo)(x) = x
+    end
+    m = Mock(; side_effect=Foo())
+    @test m(1) == 1
+    @test_throws MethodError m(1, 2)
 end
