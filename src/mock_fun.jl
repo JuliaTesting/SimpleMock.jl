@@ -111,7 +111,7 @@ sig2mock(f) = (f, Vararg{Any}) => Mock()
 
 # Has a given function and signature already been overdubbed?
 overdub_exists(::F, sig::Tuple) where F = any(methods(overdub)) do m
-    squashed = reduce(sig; init=[]) do acc, T
+    squashed = foldl(sig; init=[]) do acc, T
         if T isa DataType && T.name.name === :Vararg
             append!(acc, repeat([T.parameters[1]], T.parameters[2]))
         else

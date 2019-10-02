@@ -1,7 +1,7 @@
 name = "SimpleMock"
 uuid = "a896ed2c-15a5-4479-b61d-a0e88e2a1d25"
 authors = ["Chris de Graaf <chrisadegraaf@gmail.com>"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 Cassette = "7057c7e9-c182-5462-911a-8362d720325c"
