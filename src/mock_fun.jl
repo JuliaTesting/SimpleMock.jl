@@ -86,15 +86,14 @@ function mock(f::Function, args...; filters::Vector{<:Function}=Function[])
     mocks = map(sig2mock, args)  # ((f, sig) => mock).
     isempty(mocks) && throw(ArgumentError("At least one function must be mocked"))
 
-    # Implement the overdub, but only if it's not already implemented.
-    has_new_overdub = any(map(first, mocks)) do k
+    # Implement the overdubs, but only if they aren't already implemented.
+    has_new_overdub = false
+    foreach(map(first, mocks)) do k
         fun = k[1]
         sig = k[2:end]
-        if overdub_exists(fun, sig)
-            false
-        else
+        if !overdub_exists(fun, sig)
             make_overdub(fun, sig)
-            true
+            has_new_overdub = true
         end
     end
 

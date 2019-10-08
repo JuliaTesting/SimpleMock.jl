@@ -47,6 +47,15 @@ end
     end
 end
 
+@testset "Multiple mocks" begin
+    mock(*, /) do mul, div
+        @test 1 * 1 != 1
+        @test 1 / 1 != 1
+        @test called_once_with(mul, 1, 1)
+        @test called_once_with(div, 1, 1)
+    end
+end
+
 @testset "Varargs" begin
     varargs(::Int, ::Int, ::String, ::String, ::String, ::Bool...) = true
     varargs(args...) = false
