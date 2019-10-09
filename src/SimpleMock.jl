@@ -5,9 +5,9 @@ module SimpleMock
 
 using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
-using Core: Builtin, IntrinsicFunction
+using Core: Builtin, IntrinsicFunction, kwftype
 
-using Cassette: Cassette, overdub, posthook, prehook, recurse, @context
+using Cassette: Cassette, Context, overdub, posthook, prehook, recurse, @context
 
 export
     Call,
