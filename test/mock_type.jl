@@ -51,55 +51,49 @@ end
 @testset "reset!" begin
     m = Mock()
     foreach(m, 1:10)
+    @test ncalls(m) == 10
     reset!(m)
     @test !called(m)
 end
 
-@testset "Return values" begin
+@testset "Effects" begin
     m = Mock()
     @test m() isa Mock
     @test m(1; x=1) isa Mock
+    @test m() != m()
 
-    m = Mock(; return_value=1)
+    m = Mock(1)
     @test m() == 1
     @test m(1; x=1) == 1
-end
 
-@testset "Side effects" begin
-    m = Mock(; side_effect=1)
-    @test m() == 1
-    @test m(1, x=1) == 1
-
-    m = Mock(; side_effect=[1, 2, 3])
+    m = Mock([1, 2, 3])
     @test m() == 1
     @test m() == 2
     @test m() == 3
     @test_throws ArgumentError m()
 
-    m = Mock(; side_effect=iseven)
+    m = Mock(iseven)
     @test !m(1)
     @test m(2)
 
-    m = Mock(; side_effect=KeyError(1))
+    m = Mock(KeyError(1))
     @test_throws KeyError m()
 
-    m = Mock(; side_effect=[KeyError(1), ArgumentError("foo")])
+    m = Mock([KeyError(1), ArgumentError("foo")])
     @test_throws KeyError m()
     @test_throws ArgumentError m()
 
-    m = Mock(; side_effect=[KeyError(1), 1, ArgumentError("foo")])
+    m = Mock([KeyError(1), [], 1, ArgumentError("foo")])
     @test_throws KeyError m()
+    @test m() == []
     @test m() == 1
     @test_throws ArgumentError m()
-
-    m = Mock(; return_value=1, side_effect=2)
-    @test m() == 2
 
     @eval begin
         struct Foo end
         (::Foo)(x) = x
     end
-    m = Mock(; side_effect=Foo())
+    m = Mock(Foo())
     @test m(1) == 1
     @test_throws MethodError m(1, 2)
 end

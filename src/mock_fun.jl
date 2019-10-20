@@ -23,7 +23,7 @@ end
 Mocking a function with a custom [`Mock`](@ref):
 
 ```julia
-mock((+) => Mock(; return_value=1)) do plus
+mock((+) => Mock(1)) do plus
     @assert 1 + 1 == 1
     @assert called_once_with(plus, 1, 1)
 end
@@ -32,7 +32,7 @@ end
 Mocking methods that match a given signature:
 
 ```julia
-mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
+mock((+, Float64, Float64) => Mock((a, b) -> 2a + 2b)) do plus
     @assert 1 + 1 == 2
     @assert 2.0 + 2.0 == 8
     @assert called_once_with(plus, 2.0, 2.0)
@@ -56,8 +56,8 @@ To avoid this, you can use filter functions like so:
 ```julia
 f(x, y) = x + y
 g(x, y) = f(x, y)
-mock((+) => Mock(; side_effect=(a, b) -> 2a + b); filters=[max_depth(2)]) do plus
-    @assert f(1, 2) == 4  # The call depth of + here is 2.
+mock((+) => Mock((a, b) -> 2a + 2b); filters=[max_depth(2)]) do plus
+    @assert f(1, 2) == 6  # The call depth of + here is 2.
     @assert g(3, 4) == 7  # Here, it's 3.
     @assert called_once_with(plus, 1, 2)
 end

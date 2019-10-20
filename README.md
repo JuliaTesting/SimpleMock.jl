@@ -12,7 +12,7 @@ mock(+) do plus
     @assert called_once_with(p, 0, 1)
 end
 
-mock((+, Float64, Float64) => Mock(; side_effect=(a, b) -> 2a + 2b)) do plus
+mock((+, Float64, Float64) => Mock((a, b) -> 2a + 2b)) do plus
     @assert 1 + 1 == 2
     @assert 2.0 + 2.0 == 8
     @assert called_once_with(plus, 2.0, 2.0)

@@ -23,7 +23,7 @@ end
 end
 
 @testset "Specific methods" begin
-    mock((+, Float64, Int) => Mock(; side_effect=(a, b) -> 2a + b)) do plus
+    mock((+, Float64, Int) => Mock((a, b) -> 2a + b)) do plus
         @test 1 + 1 == 2
         @test 2.0 + 1 == 5.0
         @test called_once_with(plus, 2.0, 1)

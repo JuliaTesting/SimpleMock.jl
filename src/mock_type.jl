@@ -1,5 +1,3 @@
-const DEFAULT = gensym()
-
 """
     Call(args...; kwargs...)
 
@@ -15,32 +13,29 @@ end
 Base.:(==)(a::Call, b::Call) = a.args == b.args && a.kwargs == b.kwargs
 
 """
-    Mock(; return_value=Mock(), side_effect=nothing)
+    Mock([effect])
 
 Create a new mocking object that can act as a replacement for a function.
 
-## Return Value
+## Effects
 
-Use the `return_value` keyword to set the value to be returned upon calling the mock.
-By default, the return value is a new `Mock`.
+Use the `effect` argument to determine what happens upon calling the mock.
 
-## Side Effects
-
-Use the `side_effect` keyword to set a side effect to occur upon calling the mock.
-- If the value is an `Exception`, then the exception is thrown.
 - If the value is callable, then it is called with the same arguments and keywords.
-- If the value is a `Vector`, then each call uses the next element.
-- Any other value except `nothing` is returned without modification.
+- If the value is an `Exception`, then the exception is thrown.
+- If the value is a `Vector`, then each call consumes the next element.
+  Nested `Vector`s are returned, but callables and exceptions are treated as explained above.
+- Any other value is returned without modification.
+
+By default, calling a `Mock` returns a new `Mock`.
 """
-struct Mock{R, S}
+struct Mock{T}
     id::Symbol
     calls::Vector{Call}
-    ret::R
-    eff::S
+    effect::T
 end
 
-Mock(; return_value::R=DEFAULT, side_effect::S=nothing) where {R, S} =
-    Mock{R, S}(gensym(), [], return_value, side_effect)
+Mock(effect=(_args...; _kwargs...) -> Mock()) = Mock(gensym(), Call[], effect)
 
 Base.:(==)(a::Mock, b::Mock) = a.id === b.id
 Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
@@ -48,21 +43,11 @@ Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
 """
     (m::Mock)(args...; kwargs...)
 
-Calling a `Mock` triggers its `side_effect` or returns its `return_value` (in that order of priority).
-If neither are configured, a brand new `Mock` is returned.
-
-Either way, the call is recorded in the original `Mock`'s history.
+Calling a `Mock` records the call in its history and triggers its `effect`.
 """
 function (m::Mock)(args...; kwargs...)
     push!(calls(m), Call(args...; kwargs...))
-
-    effect = m.eff
-    effect isa Vector && (effect = popfirst!(effect))
-    effect isa Exception && throw(effect)
-    (effect isa Callable || !isempty(methods(effect))) && return effect(args...; kwargs...)
-    effect === nothing || return effect
-
-    return m.ret === DEFAULT ? Mock() : m.ret
+    return do_effect(m.effect, args...; kwargs...)
 end
 
 """
@@ -116,7 +101,7 @@ Similiar to [`called_with`](@ref), but using a [`Call`](@ref).
 has_call(m::Mock, c::Call) = c in calls(m)
 
 """
-    has_calls(::Mock, ::Calls...) -> Bool
+    has_calls(::Mock, ::Call...) -> Bool
 
 Return whether or not the [`Mock`](@ref) has a particular ordered sequence of [`Call`](@ref)s.
 """
@@ -136,6 +121,18 @@ end
     reset!(::Mock)
 
 Reset a [`Mock`](@ref)'s call history.
-Side effects and return values are preserved.
+Its `effect` is preserved.
 """
-reset!(m::Mock) = (empty!(m.calls); m)
+function reset!(m::Mock)
+    empty!(m.calls)
+    return m
+end
+
+# Handle the effect.
+do_effect(x, args...; kwargs...) = isempty(methods(x)) ? x : x(args...; kwargs...)
+do_effect(x::Callable, args...; kwargs...) = x(args...; kwargs...)
+do_effect(ex::Exception, _args...; _kwargs...) = throw(ex)
+function do_effect(xs::Vector, args...; kwargs...)
+    x = popfirst!(xs)
+    return x isa Vector ? x : do_effect(x, args...; kwargs...)
+end
