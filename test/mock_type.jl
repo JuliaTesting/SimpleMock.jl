@@ -97,3 +97,25 @@ end
     @test m(1) == 1
     @test_throws MethodError m(1, 2)
 end
+
+@testset "Show methods" begin
+    mime = MIME("text/plain")
+
+    @test sprint(show, mime, Call(1, 2, 3)) == "Call(1, 2, 3)"
+    @test sprint(show, mime, Call('a')) == "Call('a')"
+    @test sprint(show, mime, Call(; x=1, y='a')) == "Call(; x=1, y='a')"
+
+    m = Mock()
+    @test sprint(show, mime, m) == "Mock(id=$(m.id))"
+end
+
+@testset "Equality" begin
+    @test Call() == Call()
+    @test Call(1) != Call(2)
+    @test Call(1) != Call()
+    @test Call(; x=1) == Call(; x=1)
+    @test Call(; x=1) != Call(; x=2)
+
+    @test Mock() != Mock()
+    @test Mock(1) != Mock(1)
+end

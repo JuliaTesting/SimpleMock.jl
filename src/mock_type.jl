@@ -3,14 +3,24 @@
 
 Represents a function call.
 """
-struct Call
-    args::Tuple
-    kwargs::Pairs
+struct Call{T<:Tuple, P<:Pairs}
+    args::T
+    kwargs::P
 
-    Call(args...; kwargs...) = new(args, kwargs)
+    Call(args...; kwargs...) = new{typeof(args), typeof(kwargs)}(args, kwargs)
 end
 
-Base.:(==)(a::Call, b::Call) = a.args == b.args && a.kwargs == b.kwargs
+Base.:(==)(a::Call{T1, P1}, b::Call{T2, P2}) where {T1, P1, T2, P2} = false
+Base.:(==)(a::Call{T, P}, b::Call{T, P}) where {T, P} =
+    a.args == b.args && a.kwargs == b.kwargs
+
+function Base.show(io::IO, ::MIME"text/plain", c::Call)
+    print(io, "Call(")
+    print(io, join(map(repr, c.args), ", "))
+    isempty(c.kwargs) ||
+        print(io, "; ", join(map(((k, v),) -> "$k=$(repr(v))", collect(c.kwargs)), ", "))
+    print(io, ")")
+end
 
 """
     Mock([effect])
@@ -38,10 +48,11 @@ end
 Mock(effect=(_args...; _kwargs...) -> Mock()) = Mock(gensym(), Call[], effect)
 
 Base.:(==)(a::Mock, b::Mock) = a.id === b.id
+
 Base.show(io::IO, ::MIME"text/plain", m::Mock) = print(io, "Mock(id=$(m.id))")
 
 """
-    (m::Mock)(args...; kwargs...)
+    (::Mock)(args...; kwargs...)
 
 Calling a `Mock` records the call in its history and triggers its `effect`.
 """
