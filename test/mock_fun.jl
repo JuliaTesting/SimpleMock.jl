@@ -100,6 +100,11 @@ end
     @test mock(_f -> f(" hi "), ctx, uppercase => identity) == "hi"
 end
 
+@testset "Any context name is valid" begin
+    # This will throw if the context names aren't independent of the user-supplied names.
+    @test mock(_id -> true, :mock, identity)
+end
+
 @testset "Filters" begin
     @testset "Maximum/minimum depth" begin
         f(x) = identity(x)

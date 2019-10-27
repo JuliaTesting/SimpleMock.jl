@@ -1,3 +1,5 @@
+const CTXS = Dict{Symbol, UnionAll}()
+
 """
     mock(f::Function[, ctx::Symbol], args...; filters::Vector{<:Function}=Function[])
 
@@ -116,26 +118,26 @@ function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Fun
     isempty(mocks) && throw(ArgumentError("At least one function must be mocked"))
 
     # Create the new context type if it doesn't already exist.
-    context_is_new = !isdefined(@__MODULE__, ctx)
-    context_is_new && make_context(ctx)
-    Ctx = getfield(@__MODULE__, ctx)
+    ctx_is_new = !haskey(CTXS, ctx)
+    ctx_is_new && make_context(ctx)
+    Ctx = CTXS[ctx]
 
     # Implement the overdubs, but only if they aren't already implemented.
-    has_new_overdub = false
+    has_new_od = false
     foreach(map(first, mocks)) do k
         fun = k[1]
         sig = k[2:end]
-        if context_is_new || !overdub_exists(Ctx, fun, sig)
+        if ctx_is_new || !overdub_exists(Ctx, fun, sig)
             make_overdub(Ctx, fun, sig)
-            has_new_overdub = true
+            has_new_od = true
         end
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
     meta = Metadata(Dict(mocks), filters)
-    c = context_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
+    c = ctx_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
     od_args = [c, f, map(last, mocks)...]
-    return has_new_overdub ? invokelatest(overdub, od_args...) : overdub(od_args...)
+    return has_new_od ? invokelatest(overdub, od_args...) : overdub(od_args...)
 end
 
 # Output (f, sig) => mock.
@@ -145,17 +147,17 @@ sig2mock(t::Tuple) = t => Mock()
 sig2mock(f) = (f, Vararg{Any}) => Mock()
 
 # Create a new context type.
-make_context(Ctx::Symbol) = @eval begin
-    @context $Ctx
+make_context(name::Symbol) = @eval begin
+    Ctx = CTXS[$(QuoteNode(name))] = @context $(gensym())
 
     # TODO: Maybe these should be inlined, but it slows down compilation a lot.
 
-    @noinline function Cassette.prehook(ctx::$Ctx{Metadata{true}}, f, args...)
+    @noinline function Cassette.prehook(ctx::Ctx{Metadata{true}}, f, args...)
         @nospecialize f args
         update!(ctx.metadata, prehook, f, args...)
     end
 
-    @noinline function Cassette.posthook(ctx::$Ctx{Metadata{true}}, v, f, args...)
+    @noinline function Cassette.posthook(ctx::Ctx{Metadata{true}}, v, f, args...)
         @nospecialize v f args
         update!(ctx.metadata, posthook, f, args...)
     end
