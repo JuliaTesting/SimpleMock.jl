@@ -55,17 +55,42 @@ should_mock(m::Metadata, method::Tuple) = method in m.methods && all(f -> f(m), 
 
 # Update the function/module stacks.
 function update!(m::Metadata, ::typeof(prehook), @nospecialize(f), @nospecialize(args...))
+    f_uw = unwrap_fun(f)
     Ts = Tuple{map(typeof, args)...}
-    mod = if f isa Union{Builtin, IntrinsicFunction} || !hasmethod(f, Ts)
-        parentmodule(f)
+
+    mod = if f_uw isa Builtin || !hasmethod(f_uw, Ts)
+        parentmodule(f_uw)
     else
-        parentmodule(f, Ts)
+        parentmodule(f_uw, Ts)
     end
-    push!(m.funcs, f)
+
+    push!(m.funcs, f_uw)
     push!(m.mods, mod)
 end
 
 function update!(m::Metadata, ::typeof(posthook), @nospecialize(args...))
     pop!(m.funcs)
     pop!(m.mods)
+end
+
+# If a function is a keyword wrapper, try to get the wrapped function.
+# This garbage is the result of random experimentation and is very sketchy.
+# It fails in the case of closures.
+unwrap_fun(f) = f
+unwrap_fun(f::Builtin) = f
+function unwrap_fun(f::F) where F <: Function
+    startswith(string(F.name.name), "#kw##") || return f
+
+    name = Symbol(string(F.name.name)[6:end])
+    name_hash = Symbol("#", name)
+    mod = F.name.module
+
+    return if isdefined(mod, name)
+        getfield(mod, name)
+    elseif isdefined(mod, name_hash)
+        gf = getfield(mod, name_hash)
+        isdefined(gf, :instance) ? gf.instance : f
+    else
+        f
+    end
 end

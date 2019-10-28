@@ -177,4 +177,32 @@ end
             @test ncalls(f) == 2 && has_calls(f, Call(), Call())
         end
     end
+
+    @testset "Metadata records original functions and not keyword wrappers" begin
+        @eval begin
+            kw_f(; x) = kw_g(; x=x)
+            kw_g(; x) = 2x
+            kw_h = (; x) -> kw_i(; x=x)
+            kw_i = (; x) -> 2x
+        end
+        kw_j(; x) = kw_k(; x=x)
+        kw_k(; x) = 2x
+
+        test(f; broken::Bool=false) = function(m::SimpleMock.Metadata)
+            eq = SimpleMock.current_function(m) === f
+            if broken
+                @test_broken eq
+            else
+                @test eq
+            end
+            return true
+        end
+
+        # Regular functions.
+        @test mock(_g -> kw_f(; x=1), kw_g; filters=[test(kw_f)]) != 2
+        # Anonymous functions.
+        @test mock(_i -> kw_h(; x=1), kw_i; filters=[test(kw_h)]) != 2
+        # Closures.
+        @test mock(_k -> kw_j(; x=1), kw_k; filters=[test(kw_j; broken=true)]) != 2
+    end
 end

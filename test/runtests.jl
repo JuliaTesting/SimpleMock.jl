@@ -1,6 +1,6 @@
 using Base: JLOptions
 
-using Test: @test, @testset, @test_logs, @test_throws
+using Test: @test, @testset, @test_broken, @test_logs, @test_throws
 
 using Suppressor: @capture_err, @suppress
 
