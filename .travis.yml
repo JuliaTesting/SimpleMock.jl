@@ -3,12 +3,10 @@ notifications:
   email: false
 julia:
   - 1.0
-  - 1.2
   - 1.3
   - nightly
 matrix:
   allow_failures:
-    - julia: 1.3
     - julia: nightly
   include:
     - stage: Documentation
