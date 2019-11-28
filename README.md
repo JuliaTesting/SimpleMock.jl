@@ -9,7 +9,7 @@ f(x) = x + 1
 mock(+) do plus
     @assert plus isa Mock
     @assert f(0) != 1  # The call to + is mocked.
-    @assert called_once_with(p, 0, 1)
+    @assert called_once_with(plus, 0, 1)
 end
 
 mock((+, Float64, Float64) => Mock((a, b) -> 2a + 2b)) do plus
