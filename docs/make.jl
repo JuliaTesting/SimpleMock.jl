@@ -7,6 +7,7 @@ makedocs(;
     repo="https://github.com/christopher-dG/SimpleMock.jl/blob/{commit}{path}#L{line}",
     sitename="SimpleMock.jl",
     format=Documenter.HTML(;
+        prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://christopher-dG.github.io/SimpleMock.jl",
         assets=String[],
     ),
