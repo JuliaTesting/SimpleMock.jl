@@ -1,27 +1,35 @@
 @testset "Basics" begin
     m = Mock()
     @test isempty(calls(m))
+    @test_throws BoundsError last_call(m)
     @test ncalls(m) == 0
     @test !called(m)
     @test !called_once(m)
     @test !called_with(m)
+    @test_throws BoundsError called_last_with(m)
     @test !called_once_with(m)
 
     m()
     @test length((calls(m))) == 1
+    @test last_call(m) == Call()
     @test ncalls(m) == 1
     @test called(m)
     @test called_once(m)
     @test called_with(m)
+    @test called_last_with(m)
     @test called_once_with(m)
 
     m(1)
     @test !called_once(m)
     @test called_with(m, 1)
+    @test !called_last_with(m)
+    @test called_last_with(m, 1)
     @test !called_once_with(m, 1)
 
     m(1; x=2)
     @test called_with(m, 1; x=2)
+    @test last_call(m) == Call(1; x=2)
+    @test called_last_with(m, 1; x=2)
 end
 
 @testset "has_calls" begin

@@ -69,6 +69,13 @@ Return the call history of the [`Mock`](@ref).
 calls(m::Mock) = m.calls
 
 """
+    last_call(::Mock) -> Call
+
+Return the last call of the [`Mock`](@ref).
+"""
+last_call(m::Mock) = last(calls(m))
+
+"""
     ncalls(::Mock) -> Int
 
 Return the number of times that the [`Mock`](@ref) has been called.
@@ -95,6 +102,13 @@ called_once(m::Mock) = length(calls(m)) == 1
 Return whether or not the [`Mock`](@ref) has been called with the given arguments.
 """
 called_with(m::Mock, args...; kwargs...) = has_call(m, Call(args...; kwargs...))
+
+"""
+    called_last_with(::Mock, args...; kwargs...) -> Bool
+
+Return whether or not the [`Mock`](@ref) was last called with the given arguments.
+"""
+called_last_with(m::Mock, args...; kwargs...) = last_call(m) == Call(args...; kwargs...)
 
 """
     called_once_with(::Mock, args...; kwargs...) -> Bool
