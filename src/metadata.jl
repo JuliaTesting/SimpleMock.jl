@@ -117,7 +117,7 @@ unwrap_fun(f) = f
 unwrap_fun(f::Builtin) = f
 function unwrap_fun(f::F) where F <: Function
     fname = string(F.name.name)
-    if VERSION >= v"1.4"
+    @static if VERSION >= v"1.4"
         # #FNAME##kw
         endswith(fname, "##kw") || return f
         name = Symbol(fname[2:end-4])
