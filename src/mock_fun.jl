@@ -27,8 +27,11 @@ should_make_kw_wrapper(f) = has_kws(f) && !kw_wrapper_exists(f)
 
 function make_kw_wrapper(::F) where F
     push!(KW_WRAPPERS, F)
-    @eval @inline Cassette.overdub(ctx::Ctx, ::kwftype($F), kwargs, f::$F, args...) =
-        overdub(ctx, f, args...; kwargs...)
+    @eval @inline function Cassette.overdub(
+        ctx::Ctx{Meta{Fs}}, ::kwftype($F), kwargs, f::$F, args...,
+    ) where Fs >: $F
+        return overdub(ctx, f, args...; kwargs...)
+    end
 end
 
 """
