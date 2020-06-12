@@ -26,14 +26,9 @@ export
     called_once_with,
     has_call,
     has_calls,
-    reset!,
-    max_depth,
-    min_depth,
-    excluding,
-    including
+    reset!
 
 include("metadata.jl")
-include("filters.jl")
 include("mock_type.jl")
 include("mock_fun.jl")
 

@@ -105,51 +105,6 @@ end
     @test mock(_id -> true, :mock, identity)
 end
 
-@testset "Filters" begin
-    @testset "Maximum/minimum depth" begin
-        f(x) = identity(x)
-        g(x) = f(x)
-        h(x) = g(x)
-
-        mock(IDENTITY_VA, identity; filters=[max_depth(3)]) do id
-            @test f(1) != 1
-            @test g(2) != 2
-            @test h(3) == 3
-            @test ncalls(id) == 2 && has_calls(id, Call(1), Call(2))
-        end
-
-        mock(IDENTITY_VA, identity; filters=[min_depth(3)]) do id
-            @test f(1) == 1
-            @test g(2) != 2
-            @test h(3) != 3
-            @test ncalls(id) == 2 && has_calls(id, Call(2), Call(3))
-        end
-    end
-
-    @testset "Exclude/include" begin
-        @eval module Bar
-        a(x) = identity(x)
-        b(x) = identity(x)
-        end
-        c(x) = identity(x)
-        d(x) = identity(x)
-
-        mock(IDENTITY_VA, identity; filters=[excluding(Bar, c)]) do id
-            @test Bar.a(1) == 1
-            @test Bar.b(2) == 2
-            @test c(3) == 3
-            @test d(4) != 4
-        end
-
-        mock(IDENTITY_VA, identity; filters=[including(Bar, c)]) do id
-            @test Bar.a(1) != 1
-            @test Bar.b(2) != 2
-            @test c(3) != 3
-            @test d(4) == 4
-        end
-    end
-end
-
 @testset "Keyword arguments" begin
     foo(; kwargs...) = get(kwargs, :foo, nothing)
     bar(; kwargs...) = foo(; kwargs...)
@@ -164,45 +119,12 @@ end
 
     @testset "Keyword arguments are discarded when recursing" begin
         ctx = gensym()
-
-        mock(ctx, bar; filters=[including()]) do _b
-            @test_logs (:warn, "Discarding keyword arguments") baz(; foo=:baz)
-            @test @suppress baz(; foo=:baz) === nothing
-        end
-
+        mock(b -> (), ctx, bar)
         mock(ctx, foo) do f
             @test_logs (:warn, "Discarding keyword arguments") baz(; foo=:baz)
             result = @suppress baz(; foo=:baz)
             @test result !== nothing && result !== :baz
             @test ncalls(f) == 2 && has_calls(f, Call(), Call())
         end
-    end
-
-    @testset "Metadata records original functions and not keyword wrappers" begin
-        @eval begin
-            kw_f(; x) = kw_g(; x=x)
-            kw_g(; x) = 2x
-            kw_h = (; x) -> kw_i(; x=x)
-            kw_i = (; x) -> 2x
-        end
-        kw_j(; x) = kw_k(; x=x)
-        kw_k(; x) = 2x
-
-        test(f; broken::Bool=false) = function(m::SimpleMock.Metadata)
-            eq = SimpleMock.current_function(m) === f
-            if broken
-                @test_broken eq
-            else
-                @test eq
-            end
-            return true
-        end
-
-        # Regular functions.
-        @test mock(_g -> kw_f(; x=1), kw_g; filters=[test(kw_f)]) != 2
-        # Anonymous functions.
-        @test mock(_i -> kw_h(; x=1), kw_i; filters=[test(kw_h)]) != 2
-        # Closures.
-        @test mock(_k -> kw_j(; x=1), kw_k; filters=[test(kw_j; broken=true)]) != 2
     end
 end

@@ -1,7 +1,7 @@
 const CTXS = Dict{Symbol, UnionAll}()
 
 """
-    mock(f::Function[, ctx::Symbol], args...; filters::Vector{<:Function}=Function[])
+    mock(f, [ctx, ]args...)
 
 Run `f` with specified functions mocked out.
 
@@ -49,26 +49,6 @@ mock((+) => (a, b) -> 2a + 2b) do _plus
 end
 ```
 
-## Using Filters
-
-Oftentimes, you mock a function with a very specific idea of where you want that mocking to happen.
-It can be confusing when a call you didn't anticipate gets mocked somewhere deep in the call stack, botching everything.
-To avoid this, you can use filter functions like so:
-
-```julia
-f(x, y) = x + y
-g(x, y) = f(x, y)
-mock((+) => Mock((a, b) -> 2a + 2b); filters=[max_depth(2)]) do plus
-    @assert f(1, 2) == 6  # The call depth of + here is 2.
-    @assert g(3, 4) == 7  # Here, it's 3.
-    @assert called_once_with(plus, 1, 2)
-end
-```
-
-Filter functions take a single argument of type [`Metadata`](@ref).
-If any filter rejects, then mocking is not performed.
-See [Filter Functions](@ref) for a list of included filters, as well as building blocks for you to create your own.
-
 ## Reusing `Context`s
 
 Under the hood, this function creates a new [Cassette `Context`](https://jrevels.github.io/Cassette.jl/stable/api.html#Cassette.Context) on every call by default.
@@ -84,13 +64,7 @@ mock(g -> @assert(!called(g)), ctx, get)
 
 ## Keyword Arguments
 
-Mocking of functions with keyword arguments is fully supported when the following conditions are met:
-
-- Filter functions are not used
-- The context in use has no previously-mocked functions that are now unmocked
-
-if a filter function rejects and calls a mocked function (instead of its mock), that call will have no keywords.
-
+Mocking of functions with keyword arguments is fully supported when the context in use has no previously-mocked functions that are now unmocked.
 If you reuse a context that has previously mocked some function, unmocked calls to that function will have no keywords.
 For example:
 
@@ -108,12 +82,11 @@ mock(ctx, kwfunc) do k
 end
 ```
 
-In short, avoid using filters and reusing contexts when mocking functions that accept keywords.
+In short, avoid reusing contexts when mocking functions that accept keywords.
 """
-mock(f::Function, args...; filters::Vector{<:Function}=Function[]) =
-    mock(f, gensym(), args...; filters=filters)
+mock(f, args...) = mock(f, gensym(), args...)
 
-function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Function[])
+function mock(f, ctx::Symbol, args...)
     mocks = map(sig2mock, args)  # ((f, sig) => mock).
     isempty(mocks) && throw(ArgumentError("At least one function must be mocked"))
 
@@ -134,7 +107,7 @@ function mock(f::Function, ctx::Symbol, args...; filters::Vector{<:Function}=Fun
     end
 
     # Only use `invokelatest` if the Context/overdub implementations are new.
-    meta = Metadata(Dict(mocks), filters)
+    meta = Metadata(Dict(mocks))
     c = ctx_is_new ? invokelatest(Ctx; metadata=meta) : Ctx(; metadata=meta)
     od_args = [c, f, map(last, mocks)...]
     return has_new_od ? invokelatest(overdub, od_args...) : overdub(od_args...)
@@ -147,24 +120,10 @@ sig2mock(t::Tuple) = t => Mock()
 sig2mock(f) = (f, Vararg{Any}) => Mock()
 
 # Create a new context type.
-make_context(name::Symbol) = @eval begin
-    Ctx = CTXS[$(QuoteNode(name))] = @context $(gensym())
-
-    # TODO: Maybe these should be inlined, but it slows down compilation a lot.
-
-    @noinline function Cassette.prehook(ctx::Ctx{Metadata{true}}, f, args...)
-        @nospecialize f args
-        update!(ctx.metadata, prehook, f, args...)
-    end
-
-    @noinline function Cassette.posthook(ctx::Ctx{Metadata{true}}, v, f, args...)
-        @nospecialize v f args
-        update!(ctx.metadata, posthook, f, args...)
-    end
-end
+make_context(name) = @eval CTXS[$(QuoteNode(name))] = @context $(gensym())
 
 # Has a given function and signature already been overdubbed?
-function overdub_exists(::Type{Ctx}, ::F, sig::Tuple) where {Ctx <: Context, F}
+function overdub_exists(::Type{Ctx}, ::F, sig) where {Ctx <: Context, F}
     squashed = foldl(sig; init=[]) do acc, T
         if T isa DataType && T.name.name === :Vararg
             append!(acc, repeat([T.parameters[1]], T.parameters[2]))
@@ -176,7 +135,7 @@ function overdub_exists(::Type{Ctx}, ::F, sig::Tuple) where {Ctx <: Context, F}
 end
 
 # Implement `overdub` for a given Context, function, and signature.
-function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx <: Context, F}
+function make_overdub(::Type{Ctx}, ::F, sig) where {Ctx <: Context, F}
     sig_exs = Expr[]
     sig_names = []
 

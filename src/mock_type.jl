@@ -66,56 +66,56 @@ end
 
 Return the call history of the [`Mock`](@ref).
 """
-calls(m::Mock) = m.calls
+calls(m) = m.calls
 
 """
     last_call(::Mock) -> Call
 
 Return the last call of the [`Mock`](@ref).
 """
-last_call(m::Mock) = last(calls(m))
+last_call(m) = last(calls(m))
 
 """
     ncalls(::Mock) -> Int
 
 Return the number of times that the [`Mock`](@ref) has been called.
 """
-ncalls(m::Mock) = length(calls(m))
+ncalls(m) = length(calls(m))
 
 """
     called(::Mock) -> Bool
 
 Return whether or not the [`Mock`](@ref) has been called.
 """
-called(m::Mock) = !isempty(calls(m))
+called(m) = !isempty(calls(m))
 
 """
     called_once(::Mock) -> Bool
 
 Return whether or not the [`Mock`](@ref) has been called exactly once.
 """
-called_once(m::Mock) = length(calls(m)) == 1
+called_once(m) = length(calls(m)) == 1
 
 """
     called_with(::Mock, args...; kwargs...) -> Bool
 
 Return whether or not the [`Mock`](@ref) has been called with the given arguments.
 """
-called_with(m::Mock, args...; kwargs...) = has_call(m, Call(args...; kwargs...))
+called_with(m, args...; kwargs...) = has_call(m, Call(args...; kwargs...))
 
 """
     called_last_with(::Mock, args...; kwargs...) -> Bool
 
 Return whether or not the [`Mock`](@ref) was last called with the given arguments.
 """
-called_last_with(m::Mock, args...; kwargs...) = last_call(m) == Call(args...; kwargs...)
+called_last_with(m, args...; kwargs...) = last_call(m) == Call(args...; kwargs...)
 
 """
     called_once_with(::Mock, args...; kwargs...) -> Bool
 
 Return whether or not the [`Mock`](@ref) has been called exactly once with the given arguments.
 """
-called_once_with(m::Mock, args...; kwargs...) =
+called_once_with(m, args...; kwargs...) =
     called_once(m) && called_with(m, args...; kwargs...)
 
 """
@@ -123,14 +123,14 @@ called_once_with(m::Mock, args...; kwargs...) =
 
 Similiar to [`called_with`](@ref), but using a [`Call`](@ref).
 """
-has_call(m::Mock, c::Call) = c in calls(m)
+has_call(m, c) = c in calls(m)
 
 """
     has_calls(::Mock, ::Call...) -> Bool
 
 Return whether or not the [`Mock`](@ref) has a particular ordered sequence of [`Call`](@ref)s.
 """
-function has_calls(m::Mock, cs::Call...)
+function has_calls(m, cs...)
     isempty(cs) && return true
     existing = calls(m)
     length(cs) > length(existing) && return false
@@ -148,7 +148,7 @@ end
 Reset a [`Mock`](@ref)'s call history.
 Its `effect` is preserved.
 """
-function reset!(m::Mock)
+function reset!(m)
     empty!(m.calls)
     return m
 end
