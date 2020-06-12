@@ -6,11 +6,11 @@ and implemented with
 """
 module SimpleMock
 
-using Base: Callable, invokelatest, unwrap_unionall
+using Base: Callable, invokelatest, kwarg_decl
 using Base.Iterators: Pairs
-using Core: Builtin, kwftype
+using Core: kwftype
 
-using Cassette: Cassette, Context, overdub, posthook, prehook, recurse, @context
+using Cassette: Cassette, overdub, @context
 
 export
     Call,
@@ -28,7 +28,6 @@ export
     has_calls,
     reset!
 
-include("metadata.jl")
 include("mock_type.jl")
 include("mock_fun.jl")
 
