@@ -12,7 +12,7 @@ mock(+) do plus
     @assert called_once_with(plus, 0, 1)
 end
 
-mock(+ => Mock((a, b) -> 2a + 2b) do plus
+mock((+) => Mock((a, b) -> 2a + 2b) do plus
     @assert 1 + 1 == 4
     @assert called_once_with(plus, 1, 1)
 end
