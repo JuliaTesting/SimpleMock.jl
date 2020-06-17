@@ -1,6 +1,6 @@
 name = "SimpleMock"
 uuid = "a896ed2c-15a5-4479-b61d-a0e88e2a1d25"
-authors = ["Chris de Graaf <chrisadegraaf@gmail.com>"]
+authors = ["Chris de Graaf <me@cdg.dev>"]
 version = "1.1.4"
 
 [deps]
