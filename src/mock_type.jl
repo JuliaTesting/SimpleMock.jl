@@ -29,7 +29,7 @@ struct Predicate{F}
     f::F
 end
 
-Base.show(io::IO, ::MIME"text/plain", p::Predicate)= print(io, "Predicate(", p.f, ")")
+Base.show(io::IO, ::MIME"text/plain", p::Predicate) = print(io, "Predicate(", p.f, ")")
 
 (p::Predicate)(x) = p.f(x)
 

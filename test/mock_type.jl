@@ -115,6 +115,9 @@ end
 
     m = Mock()
     @test sprint(show, mime, m) == "Mock(id=$(m.id))"
+
+    p = Predicate(iseven)
+    @test sprint(show, mime, p) == "Predicate(iseven)"
 end
 
 @testset "Equality" begin
