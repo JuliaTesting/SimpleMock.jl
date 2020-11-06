@@ -24,6 +24,7 @@ Call
 has_call
 has_calls
 reset!
+Predicate
 ```
 
 ## The `mock` Function
