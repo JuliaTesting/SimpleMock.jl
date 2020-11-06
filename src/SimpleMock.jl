@@ -15,6 +15,7 @@ using Cassette: Cassette, Context, overdub, posthook, prehook, recurse, @context
 export
     Call,
     Mock,
+    Predicate,
     mock,
     calls,
     last_call,

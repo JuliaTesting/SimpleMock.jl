@@ -127,3 +127,32 @@ end
     @test Mock() != Mock()
     @test Mock(1) != Mock(1)
 end
+
+@testset "Predicates" begin
+    p = Predicate(iseven)
+
+    m = Mock()
+    @test !has_call(m, Call(p))
+    m(1)
+    @test !has_call(m, Call(p))
+    m(2)
+    @test has_call(m, Call(p))
+
+    m = Mock()
+    @test !has_call(m, Call(; x=p))
+    m(; x=1)
+    @test !has_call(m, Call(; x=p))
+    m(; x=2)
+    @test has_call(m, Call(; x=p))
+
+    m = Mock()
+    m(1, 2, 3; a=1, b=2, c=3)
+    @test !has_call(m, Call(1, 2, p; a=1, b=2, c=3))
+    @test !has_call(m, Call(1, 2, 3; a=1, b=2, c=p))
+    @test has_call(m, Call(1, p, 3; a=1, b=p, c=3))
+
+    m = Mock()
+    foreach(m, 1:10)
+    @test !has_calls(m, Call(1), Call(Predicate(==(3))))
+    @test has_calls(m, Call(Predicate(==(5))), Call(Predicate(iseven)))
+end

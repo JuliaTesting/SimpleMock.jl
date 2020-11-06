@@ -10,6 +10,29 @@ struct Call{T<:Tuple, P<:Pairs}
     Call(args...; kwargs...) = new{typeof(args), typeof(kwargs)}(args, kwargs)
 end
 
+"""
+    Predicate(f)
+
+A predicate that can be used instead of literal call arguments,
+useful for situations where the exact value of arguments is not known.
+The function `f` is called with the observed argument, and must return a `Bool`.
+
+## Example
+
+```julia
+m = Mock()
+m(rand(1:10))
+@assert called_with(m, Predicate(in(1:10)))
+```
+"""
+struct Predicate{F}
+    f::F
+end
+
+Base.show(io::IO, ::MIME"text/plain", p::Predicate)= print(io, "Predicate(", p.f, ")")
+
+(p::Predicate)(x) = p.f(x)
+
 Base.:(==)(a::Call{T1, P1}, b::Call{T2, P2}) where {T1, P1, T2, P2} = false
 Base.:(==)(a::Call{T, P}, b::Call{T, P}) where {T, P} =
     a.args == b.args && a.kwargs == b.kwargs
@@ -123,7 +146,7 @@ called_once_with(m::Mock, args...; kwargs...) =
 
 Similiar to [`called_with`](@ref), but using a [`Call`](@ref).
 """
-has_call(m::Mock, c::Call) = c in calls(m)
+has_call(m::Mock, c::Call) = any(call -> call_matches(c, call), calls(m))
 
 """
     has_calls(::Mock, ::Call...) -> Bool
@@ -137,7 +160,7 @@ function has_calls(m::Mock, cs::Call...)
     cs = collect(cs)  # Omitting this causes a segfault?!
     n = length(cs) - 1
     for i in 1:(length(existing) - n)
-        existing[i:i+n] == cs && return true
+        all(ab -> call_matches(ab...), zip(cs, existing[i:i+n])) && return true
     end
     return false
 end
@@ -161,3 +184,13 @@ function do_effect(xs::Vector, args...; kwargs...)
     x = popfirst!(xs)
     return x isa Vector ? x : do_effect(x, args...; kwargs...)
 end
+
+# Match call arguments.
+call_matches(expected, observed) =
+    length(expected.args) == length(observed.args) &&
+    issetequal(keys(expected.kwargs), keys(observed.kwargs)) &&
+    all(ab -> arg_matches(ab...), zip(expected.args, observed.args)) &&
+    all(k -> arg_matches(expected.kwargs[k], observed.kwargs[k]), keys(expected.kwargs))
+
+arg_matches(expected, observed) = expected == observed
+arg_matches(pred::Predicate, observed) = pred(observed)
