@@ -184,7 +184,20 @@ function make_overdub(::Type{Ctx}, f::F, sig::Tuple) where {Ctx <: Context, F}
         T_uw = unwrap_unionall(T)
         name = gensym()
 
-        if T_uw.name.name === :Vararg
+        if VERSION >= v"1.7" && T_uw isa TypeofVararg
+            # T === T_uw.
+            if isdefined(T, :T) && isdefined(T, :N)  # Vararg{T, N}.
+                foreach(1:T.N) do _i
+                    push!(sig_exs, :($name::$(T.T)))
+                    push!(sig_names, name)
+                    name = gensym()
+                end
+            else  # Vararg{T, N} where {T, N} or Vararg{T, N} where N.
+                T = Vararg{Any}
+                push!(sig_exs, :($name::$(T.T)...))
+                push!(sig_names, :($name...))
+            end
+        elseif T_uw.name.name === :Vararg
             if T isa UnionAll && T.body isa UnionAll  # Vararg{T, N} where {T, N}.
                 T = Vararg{Any}
             end
