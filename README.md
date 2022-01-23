@@ -1,4 +1,11 @@
-# SimpleMock [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliatesting.github.io/SimpleMock.jl) [![Build Status](https://travis-ci.com/JuliaTesting/SimpleMock.jl.svg?branch=master)](https://travis-ci.com/JuliaTesting/SimpleMock.jl)
+# SimpleMock [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliatesting.github.io/SimpleMock.jl) [![CI](https://github.com/JuliaTesting/SimpleMock.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/JuliaTesting/SimpleMock.jl/actions/workflows/CI.yml)
+
+### Notice: kind of broken
+
+This package is [broken in some cases on Julia 1.6 and newer](https://github.com/JuliaTesting/SimpleMock.jl/issues/13), for unknown reasons.
+Use at your own risk!
+
+---
 
 A basic mocking module, inspired by Python's [`unittest.mock`](https://docs.python.org/3/library/unittest.mock.html) and implemented with [Cassette](https://github.com/jrevels/Cassette.jl).
 
