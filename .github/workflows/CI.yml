@@ -23,7 +23,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@cdg/output
         continue-on-error: ${{ matrix.version == 'nightly' }}
-      - run: '[ "$JULIA_RUNTEST_EXIT" -ne 0 ] && exit 1'
+      - run: 'echo "$JULIA_RUNTEST_EXIT" && [ "$JULIA_RUNTEST_EXIT" -ne 0 ] && exit 1'
   docs:
     name: Documentation
     runs-on: ubuntu-latest
