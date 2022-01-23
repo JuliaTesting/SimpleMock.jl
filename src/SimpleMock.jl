@@ -10,6 +10,10 @@ using Base: Callable, invokelatest, unwrap_unionall
 using Base.Iterators: Pairs
 using Core: Builtin, kwftype
 
+if VERSION >= v"1.7"
+    using Core: TypeofVararg
+end
+
 using Cassette: Cassette, Context, overdub, posthook, prehook, recurse, @context
 
 export
